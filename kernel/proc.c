@@ -167,6 +167,8 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  // A recycled slot must never inherit a capability from whoever used it last.
+  p->budget_auth = 0;
   p->state = UNUSED;
 }
 
@@ -224,6 +226,11 @@ userinit(void)
   initproc = p;
 
   p->cwd = namei("/");
+  p->gid = 0;
+  // The boot process is the ONLY source of budget policy authority. There is no
+  // syscall that grants it to anyone else: every other process gets it by
+  // descending from here, and loses it for good by calling dropbudgetauth().
+  p->budget_auth = 1;
 
   p->state = RUNNABLE;
 
@@ -286,6 +293,11 @@ kfork(void)
     if (p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
+  np->gid = p->gid;
+  // Authority is inherited, like gid. This is the whole design in one line: a
+  // confined workload is confined because whoever started it gave the
+  // capability up first, and there is no way to pick one up afterwards.
+  np->budget_auth = p->budget_auth;
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
