@@ -27,6 +27,8 @@ void
 trapinithart(void)
 {
   w_stvec((uint64)kernelvec);
+  // Enable S-mode interrupts now that stvec is set.
+  w_sie(SIE_STIE | SIE_SEIE | SIE_SSIE);
 }
 
 //
