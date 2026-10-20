@@ -53,6 +53,10 @@ char *sbrklazy(int);
 // printf.c
 void fprintf(int, const char *, ...) __attribute__((format(printf, 2, 3)));
 void printf(const char *, ...) __attribute__((format(printf, 1, 2)));
+int snprintf(char *, int, const char *, ...) __attribute__((format(printf, 3, 4)));
+// Formats, then emits through report(): costs no budget, so a throttled
+// process can still state its own results.
+void rprintf(const char *, ...) __attribute__((format(printf, 1, 2)));
 
 // umalloc.c
 void *malloc(uint);
