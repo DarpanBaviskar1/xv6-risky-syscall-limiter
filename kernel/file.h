@@ -1,3 +1,6 @@
+#include "sleeplock.h"
+#include "fs.h"
+
 struct file {
   enum { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE } type;
   int ref; // reference count
@@ -25,8 +28,9 @@ struct inode {
   short major;
   short minor;
   short nlink;
+  short gid;             // Group ID for budget accounting
   uint size;
-  uint addrs[NDIRECT + 1];
+  uint addrs[NDIRECT + 1]; // Direct blocks, plus indirect block in addrs[NDIRECT]
 };
 
 // map major device number to device functions.

@@ -1,3 +1,6 @@
+#ifndef _FS_H
+#define _FS_H
+
 // On-disk file system format.
 // Both the kernel and user programs use this header file.
 
@@ -23,7 +26,7 @@ struct superblock {
 
 #define FSMAGIC 0x10203040
 
-#define NDIRECT   12
+#define NDIRECT   11
 #define NINDIRECT (BSIZE / sizeof(uint))
 #define MAXFILE   (NDIRECT + NINDIRECT)
 #define NLINK_MAX 32767 // nlink is a short; refuse links past its maximum
@@ -34,8 +37,12 @@ struct dinode {
   short major;             // Major device number (T_DEVICE only)
   short minor;             // Minor device number (T_DEVICE only)
   short nlink;             // Number of links to inode in file system
+  short gid;               // Group ID for budget accounting
+  ushort pad1;             // Explicit padding to keep struct 64 bytes
   uint size;               // Size of file (bytes)
-  uint addrs[NDIRECT + 1]; // Data block addresses
+  // Direct blocks in addrs[0..NDIRECT-1]; the indirect block lives in
+  // addrs[NDIRECT], so the array needs NDIRECT+1 entries.
+  uint addrs[NDIRECT + 1];
 };
 
 // Inodes per block.
@@ -59,3 +66,5 @@ struct dirent {
   ushort inum;
   char name[DIRSIZ] __attribute__((nonstring));
 };
+
+#endif
