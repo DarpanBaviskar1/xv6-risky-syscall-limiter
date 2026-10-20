@@ -1,4 +1,5 @@
-#!/usr/bin/perl -w
+#!/usr/bin/env perl
+use warnings;
 
 # Generate usys.S, the stubs for syscalls.
 
@@ -43,3 +44,9 @@ entry("sbrk");
 entry("pause");
 entry("uptime");
 entry("sync");
+entry("setgroup");
+entry("setbudget");
+entry("getbudgetstat");
+entry("report");
+entry("budgetinfo");
+entry("dropbudgetauth");

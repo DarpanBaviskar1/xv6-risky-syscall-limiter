@@ -25,6 +25,15 @@ char *sys_sbrk(int, int);
 int pause(int);
 int uptime(void);
 int sync(void);
+int setgroup(int gid);
+int setbudget(int gid, int max, int refill, int mode);
+int getbudgetstat(void *buf);
+int report(const void *buf, int len);
+int budgetinfo(void *buf);
+// One-way: 1 if this call took policy authority away, 0 if the caller already
+// had none. Never fails, so it is the only budget call whose return value is
+// not an error - do not test it with `< 0`.
+int dropbudgetauth(void);
 
 // ulib.c
 int stat(const char *, struct stat *);
