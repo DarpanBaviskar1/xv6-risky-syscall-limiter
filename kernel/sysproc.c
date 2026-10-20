@@ -6,6 +6,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "vm.h"
+#include "budget.h"
 
 uint64
 sys_exit(void)
@@ -109,4 +110,117 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64
+sys_setgroup(void)
+{
+  int gid;
+  struct proc *p = myproc();
+
+  argint(0, &gid);
+  if (gid < 0 || gid >= NGROUP)
+    return -1;
+  p->gid = gid;
+  return 0;
+}
+
+uint64
+sys_setbudget(void)
+{
+  int gid, max, refill, mode;
+  struct proc *p = myproc();
+
+  argint(0, &gid);
+  argint(1, &max);
+  argint(2, &refill);
+  argint(3, &mode);
+  if (gid < 0 || gid >= NGROUP)
+    return -1;
+  if (mode != BUDGET_BLOCK && mode != BUDGET_FAIL)
+    return -1;
+  if (max < 0 || refill < 0)
+    return -1;
+  struct group *g = &groups[gid];
+  acquire(&g->lock);
+  g->max = max;
+  g->refill = refill;
+  g->mode = mode;
+  // Changing the ceiling must not grant free tokens: keep what the group has
+  // already earned, but never let the held budget exceed the new ceiling.
+  if (g->budget > g->max)
+    g->budget = g->max;
+  g->last_refill = ticks;
+  // used and the event counters measure separate things: spend within this
+  // policy window, versus lifetime activity for the group.
+  g->used = 0;
+  release(&g->lock);
+  return 0;
+}
+
+// Hand the kernel's own constants to user space. Free, for the same reason
+// report() is free: a limiter that charges to be inspected cannot be inspected
+// while it is throttling. The oracle needs the table the kernel actually
+// charges, not the table a test program assumes.
+uint64
+sys_budgetinfo(void)
+{
+  uint64 addr;
+  argaddr(0, &addr);
+  struct proc *p = myproc();
+  struct budget_params out;
+
+  budget_params_fill(&out);
+  if (copyout(p->pagetable, p->sz, addr, (char *)&out, sizeof(out)) < 0)
+    return -1;
+  return 0;
+}
+
+uint64
+sys_getbudgetstat(void)
+{
+  uint64 addr;
+  argaddr(0, &addr);
+  struct proc *p = myproc();
+
+  // Staged without the spinlock so user space sees only the accounting fields.
+  struct group_stat stat[NGROUP];
+
+  for (int i = 0; i < NGROUP; i++) {
+    acquire(&groups[i].lock);
+    group_snapshot(&stat[i], &groups[i]);
+    release(&groups[i].lock);
+  }
+
+  if (copyout(p->pagetable, p->sz, addr, (char *)stat, sizeof(stat)) < 0)
+    return -1;
+  return 0;
+}
+
+// Emit text through the free reporting path.
+//
+// Observability must not cost budget. A group that is throttled still has to
+// be able to say that it is throttled; otherwise the limiter cannot be
+// measured, and the test suite silently loses its own verdicts. This is
+// deliberately a separate syscall rather than an exemption on write(), so the
+// lab's "console write costs 1 token" rule keeps its meaning for ordinary
+// output and the free path stays explicitly chosen and counted.
+uint64
+sys_report(void)
+{
+  uint64 addr;
+  int n;
+  char buf[REPORT_MAX + 1];
+  struct proc *p = myproc();
+
+  argaddr(0, &addr);
+  argint(1, &n);
+  if (n < 0 || n > REPORT_MAX)
+    return -1;
+  if (copyin(p->pagetable, p->sz, buf, addr, n) < 0)
+    return -1;
+  buf[n] = 0;
+  printk("%s", buf);
+  budget_note_report(p->gid, n);
+  return n;
 }
