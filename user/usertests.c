@@ -1814,48 +1814,69 @@ bigfile(char *s)
 void
 fourteen(char *s)
 {
-  int fd;
+  int fd, i;
+  char exact[DIRSIZ + 2], over[DIRSIZ + 3];
+  char path[3 * DIRSIZ + 8];
 
-  // DIRSIZ is 14.
+  // The point of this test is that namei() truncates a path component at
+  // DIRSIZ, so an exactly-DIRSIZ name and a DIRSIZ+1 name collide on the same
+  // directory entry.  Upstream hard-codes that pair as 14 and 15 characters;
+  // this tree's DIRSIZ is 30, where the literals stopped colliding and the
+  // test failed for a reason unrelated to the file system.  Build both names
+  // from the macro so the test cannot go stale again.
+  for (i = 0; i < DIRSIZ; i++)
+    exact[i] = over[i] = '0' + (i % 10);
+  exact[DIRSIZ] = '\0';
+  over[DIRSIZ] = 'x';
+  over[DIRSIZ + 1] = '\0';
 
-  if (mkdir("12345678901234") != 0) {
-    printf("%s: mkdir 12345678901234 failed\n", s);
+  if (mkdir(exact) != 0) {
+    printf("%s: mkdir %s failed\n", s, exact);
     exit(1);
   }
-  if (mkdir("12345678901234/123456789012345") != 0) {
-    printf("%s: mkdir 12345678901234/123456789012345 failed\n", s);
+  snprintf(path, sizeof(path), "%s/%s", over, over);
+  if (mkdir(path) != 0) {
+    printf("%s: mkdir %s failed\n", s, path);
     exit(1);
   }
-  fd = open("123456789012345/123456789012345/123456789012345", O_CREATE);
+  snprintf(path, sizeof(path), "%s/%s/%s", over, over, over);
+  fd = open(path, O_CREATE);
   if (fd < 0) {
-    printf(
-      "%s: create 123456789012345/123456789012345/123456789012345 failed\n", s);
+    printf("%s: create %s failed\n", s, path);
     exit(1);
   }
   close(fd);
-  fd = open("12345678901234/12345678901234/12345678901234", 0);
+  snprintf(path, sizeof(path), "%s/%s/%s", exact, exact, exact);
+  fd = open(path, 0);
   if (fd < 0) {
-    printf("%s: open 12345678901234/12345678901234/12345678901234 failed\n", s);
+    printf("%s: open %s failed\n", s, path);
     exit(1);
   }
   close(fd);
 
-  if (mkdir("12345678901234/12345678901234") == 0) {
-    printf("%s: mkdir 12345678901234/12345678901234 succeeded!\n", s);
+  snprintf(path, sizeof(path), "%s/%s", exact, exact);
+  if (mkdir(path) == 0) {
+    printf("%s: mkdir %s succeeded!\n", s, path);
     exit(1);
   }
-  if (mkdir("123456789012345/12345678901234") == 0) {
-    printf("%s: mkdir 12345678901234/123456789012345 succeeded!\n", s);
+  snprintf(path, sizeof(path), "%s/%s", over, exact);
+  if (mkdir(path) == 0) {
+    printf("%s: mkdir %s succeeded!\n", s, path);
     exit(1);
   }
 
   // clean up
-  unlink("123456789012345/12345678901234");
-  unlink("12345678901234/12345678901234");
-  unlink("12345678901234/12345678901234/12345678901234");
-  unlink("123456789012345/123456789012345/123456789012345");
-  unlink("12345678901234/123456789012345");
-  unlink("12345678901234");
+  snprintf(path, sizeof(path), "%s/%s", over, exact);
+  unlink(path);
+  snprintf(path, sizeof(path), "%s/%s", exact, exact);
+  unlink(path);
+  snprintf(path, sizeof(path), "%s/%s/%s", exact, exact, exact);
+  unlink(path);
+  snprintf(path, sizeof(path), "%s/%s/%s", over, over, over);
+  unlink(path);
+  snprintf(path, sizeof(path), "%s/%s", exact, over);
+  unlink(path);
+  unlink(exact);
 }
 
 void
