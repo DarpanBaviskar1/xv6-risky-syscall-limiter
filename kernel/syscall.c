@@ -6,6 +6,9 @@
 #include "proc.h"
 #include "syscall.h"
 #include "defs.h"
+#include "file.h"
+#include "fs.h"
+#include "budget.h"  // COST_*: the cost table is data, not literals
 
 // Fetch the uint64 at addr from the current process.
 int
@@ -145,6 +148,53 @@ static uint64 (*syscalls[])(void) = {
   // clang-format on
 };
 
+// Return the budget cost for a system call.
+// Only irreversible operations are charged; the dispatcher skips the
+// accounting path entirely for a cost of zero.
+int
+syscall_cost(int num, struct proc *p)
+{
+  switch (num) {
+    case SYS_unlink:
+      return COST_UNLINK;
+    case SYS_exec: {
+      // Running a binary another group wrote is irreversible-ish: the image
+      // replaces this process, so the cost cannot be refunded.
+      char path[MAXPATH];
+      if (argstr(0, path, sizeof(path)) < 0)
+        return 0;
+      struct inode *ip = namei(path);
+      if (ip == 0)
+        return 0; // sys_exec will fail on its own; nothing to charge
+      // namei() hands back an unlocked inode, which may be an icache slot that
+      // has never been read from disk, so its gid field is whatever the slot
+      // held before. Lock it before believing the owner.
+      ilock(ip);
+      int owner = ip->gid;
+      iunlockput(ip);
+      return owner == p->gid ? COST_OWN_EXEC : COST_FOREIGN_EXEC;
+    }
+    case SYS_write: {
+      int fd = p->trapframe->a0;
+      if (fd == 1 || fd == 2) {
+        return COST_CONSOLE_WRITE;
+      }
+      if (fd >= 0 && fd < NOFILE && p->ofile[fd]) {
+        struct file *f = p->ofile[fd];
+        if (f->type == FD_INODE && f->ip)
+          return f->ip->gid == p->gid ? COST_OWN_WRITE : COST_FOREIGN_WRITE;
+        // A pipe write destroys nothing on disk and is not the console, so it
+        // is not the kind of operation the budget exists for. Charging it made
+        // every shell pipeline pay for the kernel's own buffering.
+        return COST_PIPE_WRITE;
+      }
+      return COST_CLOSED_WRITE; // closed descriptor: charged like console
+    }
+    default:
+      return 0;
+  }
+}
+
 void
 syscall(void)
 {
@@ -154,6 +204,18 @@ syscall(void)
   num = p->trapframe->a7;
 
   if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    // Charge before dispatching: the operation must be paid for up front,
+    // since it may not be reversible once it has run.
+    int cost = syscall_cost(num, p);
+    int denial = charge(p->gid, cost);
+    if (denial < 0) {
+      // Pass the sentinel through so the caller can tell a budget denial from
+      // the syscall failing on its own merits. Still negative, so existing
+      // error checks keep working.
+      p->trapframe->a0 = denial;
+      return;
+    }
+
     // Use num to lookup the system call function for num, call it,
     // and store its return value in p->trapframe->a0
     p->trapframe->a0 = syscalls[num]();
