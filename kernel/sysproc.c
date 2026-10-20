@@ -112,11 +112,24 @@ sys_uptime(void)
   return xticks;
 }
 
+// Budget policy authority, decided here rather than in the dispatcher: these
+// two syscalls WRITE policy, so they are the escape routes a confined process
+// would use. Reading is never gated - getbudgetstat() and budgetinfo() stay
+// open to any process, because a limiter a confined group cannot inspect is not
+// an auditable limiter.
+//
+// The check comes before argument validation on purpose. Telling an
+// unauthorised caller that its gid was out of range hands it information about
+// the validator that it cannot act on anyway; the only fact worth returning is
+// that it may not be asking.
 uint64
 sys_setgroup(void)
 {
   int gid;
   struct proc *p = myproc();
+
+  if (!p->budget_auth)
+    return BUDGET_NOAUTH;
 
   argint(0, &gid);
   if (gid < 0 || gid >= NGROUP)
@@ -131,6 +144,9 @@ sys_setbudget(void)
   int gid, max, refill, mode;
   struct proc *p = myproc();
 
+  if (!p->budget_auth)
+    return BUDGET_NOAUTH;
+
   argint(0, &gid);
   argint(1, &max);
   argint(2, &refill);
@@ -143,6 +159,11 @@ sys_setbudget(void)
     return -1;
   struct group *g = &groups[gid];
   acquire(&g->lock);
+  // Bank the accrual the OLD policy earned before its rate is replaced, and
+  // before last_refill is reset below. Without this the part of a period that
+  // had already elapsed is thrown away, so a group that behaved itself and was
+  // then reconfigured would silently lose tokens it had been granted.
+  budget_bank(g);
   g->max = max;
   g->refill = refill;
   g->mode = mode;
@@ -156,6 +177,28 @@ sys_setbudget(void)
   g->used = 0;
   release(&g->lock);
   return 0;
+}
+
+// Give up budget policy authority, forever.
+//
+// This is the other half of the authority rule, and the only half a confined
+// workload can reach: without a way to drop, "only the controller writes
+// policy" would mean "everything descends from init, so everything writes
+// policy". A runner installs the policy, moves itself into the group, drops, and
+// then execs the workload - exec does not reset process flags, so the image
+// that starts running is already unauthorised, and so is everything it forks.
+//
+// Returns 1 if this call took authority away, 0 if the caller had none to take.
+// Idempotent, and there is no matching grant: the kernel has no syscall that
+// gives authority back, to this process or to any of its descendants.
+uint64
+sys_dropbudgetauth(void)
+{
+  struct proc *p = myproc();
+  int had = p->budget_auth;
+
+  p->budget_auth = 0;
+  return had;
 }
 
 // Hand the kernel's own constants to user space. Free, for the same reason
