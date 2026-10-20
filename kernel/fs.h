@@ -58,7 +58,9 @@ struct dinode {
 #define BBLOCK(b, sb) ((b) / BPB + sb.bmapstart)
 
 // Directory is a file containing a sequence of dirent structures.
-#define DIRSIZ 14
+// 30 (not the upstream 14) so that names like "test_budget_suite" fit;
+// sizeof(struct dirent) is then 32, which still divides BSIZE evenly.
+#define DIRSIZ 30
 
 // The name field may have DIRSIZ characters and not end in a NUL
 // character.
