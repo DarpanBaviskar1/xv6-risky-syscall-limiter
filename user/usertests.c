@@ -7,6 +7,7 @@
 #include "kernel/syscall.h"
 #include "kernel/memlayout.h"
 #include "kernel/riscv.h"
+#include "kernel/budget.h"
 
 //
 // Tests xv6 system calls.  usertests without arguments runs them all
@@ -3532,6 +3533,71 @@ drivetests(int quick, int continuous, char *justone)
   return 0;
 }
 
+// The upstream suite is nothing but irreversibility: createtest unlinks ten
+// times, manyfiles unlinks around two thousand, grind deletes a whole tree.
+// Under the demo policy every group starts with - 100 tokens, 10 back per
+// period - that is not a slow test, it is a stalled one, and the lab's "all
+// existing tests still pass" cannot be claimed from a stall.
+//
+// So the suite places itself in the group kernel/budget.h reserves for it, with
+// a ceiling far above anything the run can spend. The limiter stays mounted and
+// keeps charging and counting every call; it simply stops being the thing under
+// test. Whether it stayed out of the way is not assumed: budget_tests_report()
+// prints the kernel's own counters, and a nonzero wait or refusal there means
+// this policy was too small and the run says so out loud.
+//
+// Placing oneself in a group is a policy write, which needs authority - something
+// usertests has only because it descends from init without dropping. A confined
+// process cannot do this, and the confinement scenarios in user/scenarios.c
+// grade that difference.
+#define TESTS_TOKENS  4000000 // 400,000 unlinks: no test in this suite gets near it
+#define TESTS_REFILL  400000
+
+static void
+budget_tests_setup(void)
+{
+  if (setgroup(BUDGET_GID_TESTS) < 0 ||
+      setbudget(BUDGET_GID_TESTS, TESTS_TOKENS, TESTS_TOKENS, BUDGET_BLOCK) < 0) {
+    printf("usertests: cannot install the reserved test-group policy\n");
+    exit(1);
+  }
+  // A group nobody has configured holds the default 100 tokens, and setbudget()
+  // deliberately never tops a bucket up - raising a ceiling must not hand out
+  // free tokens. So earn one period at the ceiling rate before measuring, or the
+  // first few hundred console writes stall on a policy that was only meant to
+  // stay out of the way. This costs ten seconds of wall clock and buys a run in
+  // which a wait would mean something.
+  pause(BUDGET_PERIOD + 2);
+  if (setbudget(BUDGET_GID_TESTS, TESTS_TOKENS, TESTS_REFILL, BUDGET_BLOCK) < 0) {
+    printf("usertests: cannot set the test-group refill\n");
+    exit(1);
+  }
+  rprintf("[budget] usertests in group %d: max=%d refill=%d mode=BLOCK, "
+          "bucket filled to the ceiling first\n",
+          BUDGET_GID_TESTS, TESTS_TOKENS, TESTS_REFILL);
+}
+
+static void
+budget_tests_report(void)
+{
+  struct group_stat all[NGROUP];
+  struct group_stat *s;
+
+  if (getbudgetstat(all) < 0) {
+    rprintf("[budget] getbudgetstat failed: no accounting for this run\n");
+    return;
+  }
+  s = &all[BUDGET_GID_TESTS];
+  rprintf("[budget] group %d after usertests: allowed=%d blocked=%d refused=%d "
+          "used=%d budget=%d/%d\n", BUDGET_GID_TESTS, s->n_allowed, s->n_blocked,
+          s->n_refused, s->used, s->budget, s->max);
+  if (s->n_blocked || s->n_refused)
+    rprintf("[budget] THE POLICY BOUND: %d waits, %d refusals - this run was "
+            "throttled, not just measured\n", s->n_blocked, s->n_refused);
+  else
+    rprintf("[budget] the limiter accounted for every call and throttled none\n");
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -3551,9 +3617,12 @@ main(int argc, char *argv[])
     printf("Usage: usertests [-c] [-C] [-q] [testname]\n");
     exit(1);
   }
+  budget_tests_setup();
   if (drivetests(quick, continuous, justone)) {
+    budget_tests_report();
     exit(1);
   }
+  budget_tests_report();
   printf("ALL TESTS PASSED\n");
   exit(0);
 }
