@@ -1,0 +1,15 @@
+#!/usr/bin/env expect
+set timeout 180
+log_file -noappend qemu_output.log
+
+# Spawn QEMU with the same flags as Makefile (but without version check)
+spawn qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 3 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+# Wait for xv6 shell prompt
+expect "$ "
+send "test_budget_suite\r"
+
+# Wait for test completion and final prompt
+expect "$ "
+send "\x01x"
+expect eof

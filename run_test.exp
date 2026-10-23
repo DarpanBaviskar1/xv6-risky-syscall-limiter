@@ -1,0 +1,40 @@
+#!/usr/bin/env expect
+set timeout 180
+log_file -noappend qemu_output.log
+
+# Spawn QEMU. -bios none is required: the kernel starts in M-mode at
+# 0x80000000 and installs its own trap vectors, so a firmware in front of it
+# would only get in the way.
+spawn qemu-system-riscv64 -machine virt -bios none -kernel kernel/kernel -m 128M -smp 1 -nographic -global virtio-mmio.force-legacy=false -drive file=fs.img,if=none,format=raw,id=x0 -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+
+# Wait for xv6 shell prompt
+expect {
+    "$ " {
+        send "test_budget_suite\r"
+    }
+    timeout {
+        puts "TIMEOUT: No shell prompt found"
+        exit 1
+    }
+}
+
+# Wait for test completion
+expect {
+    "All Tests Completed" {
+        puts "Tests completed successfully"
+    }
+    "Test 6 completed" {
+        puts "Test 6 completed"
+    }
+    timeout {
+        puts "TIMEOUT: Tests did not complete"
+        exit 1
+    }
+}
+
+# Give time for final output
+sleep 2
+
+# Exit QEMU
+send "\x01x"
+expect eof
