@@ -1,48 +1,1391 @@
-xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
-Version 6 (v6).  xv6 loosely follows the structure and style of v6,
-but is implemented for a modern RISC-V multiprocessor using ANSI C.
+xv6-risky-syscall-limiter
+=========================
 
-ACKNOWLEDGMENTS
+Irreversibility Budget for Process Groups.
+CSL3030 Operating Systems Lab (IIT Jodhpur), Question 1.
+A modified xv6-riscv kernel in which a class of destructive system calls has
+to pay for itself out of a per-process-group token budget.
 
-xv6 is inspired by John Lions's Commentary on UNIX 6th Edition (Peer
-to Peer Communications; ISBN: 1-57398-013-7; 1st edition (June 14,
-2000)).  See also https://pdos.csail.mit.edu/6.1810/, which provides
-pointers to on-line resources for v6.
 
-The following people have made contributions: Russ Cox (context switching,
-locking), Cliff Frey (MP), Xiao Yu (MP), Nickolai Zeldovich, and Austin
-Clements.
+================================================================
+0. READ THIS FIRST
+================================================================
 
-We are also grateful for the bug reports and patches contributed by
-Abhinavpatel00, Takahiro Aoyagi, Marcelo Arroyo, Hirbod Behnam, Silas
-Boyd-Wickizer, Anton Burtsev, carlclone, Ian Chen, clivezeng, Dan
-Cross, Cody Cutler, Mike CAT, Tej Chajed, Asami Doi,Wenyang Duan,
-echtwerner, eyalz800, Nelson Elhage, Saar Ettinger, Alice Ferrazzi,
-Nathaniel Filardo, flespark, Peter Froehlich, Yakir Goaron, Shivam
-Handa, Matt Harvey, Bryan Henry, jaichenhengjie, Jim Huang, Matúš
-Jókay, John Jolly, Alexander Kapshuk, Anders Kaseorg, kehao95,
-Wolfgang Keller, Jungwoo Kim, Jonathan Kimmitt, Eddie Kohler, Vadim
-Kolontsov, Austin Liew, Bruce Lowekamp, l0stman, Pavan Maddamsetti,
-Imbar Marinescu, Yandong Mao, Matan Shabtay, Hitoshi Mitake, Carmi
-Merimovich, mes900903, Mark Morrissey, mtasm, Joel Nider, Hayato Ohhashi,
-OptimisticSide, papparapa, phosphagos, Harry Porter, Greg Price, Zheng
-qhuo, Quancheng, RayAndrew, Jude Rich, segfault, Ayan Shafqat, Eldar
-Sehayek, Yongming Shen, Fumiya Shigemitsu, snoire, Taojie, Cam Tenny,
-tyfkda, Warren Toomey, Stephen Tu, Alissa Tung, Rafael Ubal, unicornx,
-Amane Uehara, Pablo Ventura, Luc Videau, Xi Wang, WaheedHafez, Keiichi
-Watanabe, Lucas Wolf, Nicolas Wolovick, wxdao, Grant Wu, x653, Andy
-Zhang, Jindong Zhang, Icenowy Zheng, ZhUyU1997, and Zou Chang Wei.
+If you are an agent (or a person) picking this project up cold, this file is
+the whole briefing. There is no other design doc.
 
-ERROR REPORTS
+WHAT EXISTS: a working, booting xv6-riscv kernel in which unlink(), write()
+and exec() are charged against a per-group token bucket, plus six new system
+calls (setgroup, setbudget, getbudgetstat, report, budgetinfo, dropbudgetauth)
+and three new user programs (budgetstat, test_budget_suite, scenarios) to
+configure, observe and exercise it. Writing policy is gated on an inherited
+capability that only the boot process starts with and that any process can give
+up forever. On the host side, budget_oracle.py re-derives what the engine should
+have done and analyze_results.py draws it; generate_results.py runs all of that
+with one command.
 
-Please send errors and suggestions to Frans Kaashoek and Robert Morris
-(kaashoek,rtm@mit.edu).  The main purpose of xv6 is as a teaching
-operating system for MIT's 6.1810, so we are more interested in
-simplifications and clarifications than new features.
+WHAT IS PROVEN: the bucket, the charging path, every row of the cost table in
+section 2 (console 1, own-group write 0, other-group write 3, pipe write 0,
+unlink 10, foreign exec 5, own-group exec 0), BLOCK vs FAIL, lazy refill,
+per-group isolation, a denial that costs nothing and is distinguishable from a
+real error, and a reporting path that costs nothing - all measured on real QEMU,
+110 assertions, 110 pass, 0 fail (section 9). Beyond that, 28 workload scenarios
+and 147 traced operations graded against an independent model of the lab rules:
+959 derived checks, 959 agree, and the model is known capable of disagreeing
+because twelve injected lies are each caught by the check meant to catch them
+(section 9, Steps 3 and 4). The authority rule is measured, not asserted: a
+confined child refuses all seven ways out of its group, its policy never moves,
+the rich decoy group it cannot reach stays untouched, and it is still charged
+for the work it is allowed to do. And the lab's "all existing usertests still
+pass" line is now true on this kernel - 65 tests, ALL TESTS PASSED, with the
+limiter accounting for 55012 risky calls in group 18 and throttling none.
 
-BUILDING AND RUNNING XV6
+WHAT IS NOT DONE, in order of how much it matters:
+  * Step 5, the showcase: a real QEMU console window you drive xv6 from the way
+    the x86 build used to give you, and a way for a user to write their own
+    budget test suite and run it from that CLI. Section 11. Nothing that is
+    claimed in this file depends on it.
 
-You will need a RISC-V "newlib" tool chain from
-https://github.com/riscv/riscv-gnu-toolchain, and qemu compiled for
-riscv64-softmmu.  Once they are installed, and in your shell
-search path, you can run "make qemu".
+Where this is: the engine, its authority rule, its instrumentation, its oracle
+and the upstream test suite are all verified. What remains is presentation.
+
+
+================================================================
+1. THE IDEA
+================================================================
+
+Destructive operations are irreversible. unlink() cannot be undone by the
+process that called it. A normal sandbox asks "is this allowed?" once and then
+permits or denies. This kernel asks a different question: how much
+irreversibility has this group consumed, and is this call worth a token?
+
+Each process group holds a token budget. Risky syscalls cost tokens. Tokens
+trickle back over time (refill). When a group is out of tokens the kernel
+either makes it wait (BLOCK) or refuses the call (FAIL). Nothing else about
+xv6 changes: files are still readable, fork is still free, kill is still free.
+The budget is only about irreversibility.
+
+So this is not a permission system. A group with budget can do anything a
+stock xv6 group can do; it just pays. That distinction matters for item 1 of
+section 10.
+
+
+================================================================
+2. THE COST TABLE
+================================================================
+
+Defined by syscall_cost() in kernel/syscall.c:148.
+
+    syscall                        cost   why
+    ----------------------------------------------------------------------------
+    unlink(path)                     10   the reference destructive operation.
+    write(fd,..) with fd = 1 or 2     1   console output is irreversible - it is
+                                          already on screen / in the log.
+    write to a file owned by our
+        group                         0   the group already owns the damage.
+    write to a file owned by
+        another group                 3   cross-group side effect.
+    exec(path) whose creating group
+        is not ours                   5   running another group's binary hands
+                                          control to code you did not write.
+    exec of a binary our own group
+        wrote                         0   same reason as the own-group write.
+    write to a pipe                   0   destroys nothing on disk. Charging it
+                                          made every shell pipeline pay for the
+                                          kernel's own buffering.
+    everything else                   0   free.
+
+"Owned by our group" means ip->gid == p->gid: the file's creating group, read
+from the on-disk inode, compared against the calling process's group.
+
+Cost is per SYSCALL, not per byte and not per printf. That distinction is the
+single most surprising thing about this design: xv6's user-level printf()
+issues one write() per character (user/printf.c calls write(fd, &c, 1) once per
+character), so a 60-character line is 60 console writes and 60 tokens. Even
+after batching printf into one write per call, note that this tree's
+user/echo.c calls write() twice per argument (the text, then the newline), so
+"echo one word" is 2 tokens, not 1. Any expectation you compute must be in
+write() calls.
+
+The charged output path is a choice, not an accident. user/printf.c now has one
+formatter and two sinks: printf/ffprintf keep the historical one-character-one
+write() behaviour, which the budget charges for, and rprintf() formats into a
+buffer and emits it through the free report() syscall. Nothing was exempted
+behind the lab's back - the free path is a separate, explicitly named,
+separately counted syscall. See section 4.
+
+This table is DATA, not prose. budgetinfo() (syscall 27, free) copies the
+kernel's own constants out to user space, so a test, a plotting script or the
+oracle can price an operation from the table that is actually being charged
+rather than from a transcription of it. budgetstat prints it before the group
+rows. The lab's numbers above are what the kernel publishes today, and section 9
+shows the run where an independent copy of that table was checked against it.
+
+
+================================================================
+3. DESIGN
+================================================================
+
+3.1 GROUP IDENTITY AND POLICY AUTHORITY
+---------------------------------------
+struct proc carries two inherited facts (kernel/proc.h):
+
+    int gid;          // which budget this process spends from
+    int budget_auth;  // 1 = may write group policy (setgroup/setbudget)
+
+Both follow the same inheritance path:
+
+    userinit()     p->gid = 0,  p->budget_auth = 1   kernel/proc.c:227
+    kfork/fork     np->gid = p->gid,
+                   np->budget_auth = p->budget_auth  kernel/proc.c:290
+    exec           neither touched, so both inherited
+    freeproc()     p->budget_auth = 0               recycled slot starts clean
+    setgroup(g)    p->gid = g                       kernel/sysproc.c:116
+    dropbudgetauth() p->budget_auth = 0             one-way, forever
+
+gid is therefore inherited down the whole process tree and survives exec,
+which is what the lab asks for: a child cannot shed its group by exec'ing, and
+cannot escape by re-exec'ing itself. authority works the same way and is the
+subject of 3.7.
+
+The file's group is a separate, on-disk fact: short gid in struct dinode
+(kernel/fs.h) and in struct inode (kernel/file.h). It is stamped at creation
+(kernel/fs.c:213, dip->gid = myproc()->gid), copied on link (kernel/fs.c:240),
+and loaded into the in-memory inode in ilock() (kernel/fs.c:314). mkfs
+initialises it to 0 (mkfs/mkfs.c:235), so every shipped binary belongs to
+group 0.
+
+3.2 THE GROUP TABLE
+-------------------
+kernel/budget.c owns 20 groups, declared in kernel/budget.h:
+
+    struct group {
+      struct spinlock lock;
+      int used;          // tokens spent since the last setbudget()
+      int budget;        // tokens currently available
+      int max;           // ceiling
+      int refill;        // tokens added per 100 ticks
+      int mode;          // BUDGET_BLOCK or BUDGET_FAIL
+      uint last_refill;  // tick the accrual is caught up to
+      int n_allowed;     // charged syscalls that were granted
+      int n_blocked;     // syscalls that had to wait (episodes, not wakeups)
+      int n_refused;     // syscalls denied: FAIL mode, or unaffordable in BLOCK
+      int n_reported;    // report() calls served, counted but never charged
+      int report_bytes;  // bytes emitted through the free reporting path
+    } groups[NGROUP];     // NGROUP = 20
+
+One spinlock per group, not one global lock, so two groups genuinely run in
+parallel. That is what Test 5 exercises on 3 CPUs.
+
+Defaults from budgetinit(), called at kernel/main.c:30 after fileinit() and
+before virtio_disk_init(): budget=100, max=100, refill=10 per 100 ticks,
+mode=BLOCK, all counters zero.
+
+This struct used to be duplicated in budget.c and sysproc.c. Two definitions
+of the same layout in two translation units is a silent-corruption bug waiting
+for someone to edit one of them; it now lives in one header.
+
+3.3 WHERE THE CHARGE HAPPENS
+----------------------------
+In the dispatcher, kernel/syscall.c, before the syscall body runs:
+
+    if (num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+      int cost = syscall_cost(num, p);
+      int denial = charge(p->gid, cost);
+      if (denial < 0) {
+        p->trapframe->a0 = denial;   // BUDGET_DENIED: the syscall never ran
+        return;
+      }
+      p->trapframe->a0 = syscalls[num]();
+    }
+
+Three properties worth preserving:
+
+  * Pay before you break. The token is taken first. If the call is denied it
+    never executed, so there is nothing to roll back. Charging after the call
+    would mean a denial that already deleted the file.
+  * Unknown syscall numbers are not charged. The validity check gates the
+    charge, so garbage in a7 costs nothing and cannot be used to drain a
+    budget.
+  * A denial is not -1. It is BUDGET_DENIED (-42), defined in kernel/budget.h.
+    Still negative, so every existing `if (x < 0)` error path keeps firing, but
+    a program can now tell "the limiter stopped me" from "my own arguments were
+    wrong" - which is what makes a test able to assert on a denial at all. The
+    pair is verified in Test 2 (denial -> -42) and Test 7 (unlink of a missing
+    file -> -1).
+
+The consequence of "pay before you break" that surprises people: an unlink of a
+file that does not exist still costs 10 tokens. The token buys the attempt, and
+the kernel cannot know the attempt is harmless until it has run it. Test 7
+asserts this explicitly rather than hiding it.
+
+charge() returns early on cost <= 0, before taking the lock, so the free
+majority of syscalls pay no spinlock and pollute no counters.
+
+3.4 BLOCK vs FAIL
+-----------------
+    charge(gid, cost):
+      if cost <= 0: return 0
+      lock; catch refill up to now
+      if BLOCK and budget < cost and (max < cost or refill <= 0):
+        n_refused++; unlock; return BUDGET_DENIED    // would never be affordable
+      while budget < cost:
+        FAIL mode  -> n_refused++, unlock, return BUDGET_DENIED
+        BLOCK mode -> n_blocked++ (once per episode), sleep on &ticks,
+                      relock, refill
+      budget -= cost; used += cost; n_allowed++; return 0
+
+The unaffordable guard is a Step 2 addition and it matters: without it, a BLOCK
+group whose ceiling sits below the price of the call (max 9 vs an unlink at 10),
+or whose refill is 0 with a short bucket, does not wait - it sleeps forever.
+Waiting for a token that can never arrive is a hang, not a delay, so the kernel
+denies it the way FAIL would. Test 3 covers both shapes.
+
+BLOCK sleeps on &ticks, which the timer interrupt wakes every tick
+(kernel/trap.c does ticks++; wakeup(&ticks)). A blocked process therefore
+rechecks once per tick and proceeds on the first tick whose refill covers the
+cost. That is what produces the staircase in the graph.
+
+n_blocked counts episodes, not wakeups: one unlink that sleeps through 100 ticks
+is one blocked event, not 100. Test 6's BLOCK phase reads exactly 2 for 5
+unlinks against a 30-token bucket, i.e. one per throttled call.
+
+
+3.5 REFILL
+----------
+Lazy - there is no background thread:
+
+    periods = (ticks - last_refill) / 100
+    budget += periods * refill          // clamped to max
+    last_refill += periods * 100
+
+group_snapshot(), which backs getbudgetstat, runs the same catch-up before
+copying, so an idle group reports its true accrued budget instead of a stale
+one. Without that, a report taken between syscalls looks like refill is
+broken.
+
+One tick is about 100 ms in this tree (kernel/trap.c arms the next timer
+1,000,000 cycles out at 10 MHz), so the default 10 tokens per 100 ticks is
+roughly 10 tokens per 10 seconds - about one unlink per 10 seconds.
+
+3.6 OBSERVABILITY HAS TO BE FREE
+--------------------------------
+While reporting is charged, an instrumented process cannot report. That is not a
+theoretical wrinkle: in the Step 1 logs, Test 4 printed no verdict at all,
+because the ten children spent the group's tokens on printf characters before
+they got to the assertion, and the parent's own output was blocked behind them.
+
+So the reporting path is free and separately counted (report(), section 4;
+rprintf(), user/printf.c). The accounting rule:
+
+    charged path  : destroys something  -> spends budget
+    free path     : observes            -> spends nothing, but is counted
+
+A free channel nobody measures is a free channel nobody can explain, so every
+report() bumps n_reported and report_bytes. budgetstat's own table now costs
+nothing, which is the difference between a limiter you can demonstrate and a
+limiter that silences its own demonstration.
+
+3.7 WHO MAY SET POLICY
+----------------------
+The question a grader asks first: if any process can call setbudget(), then any
+confined process can raise its own ceiling, and the limiter is decoration.
+
+The rule this kernel implements:
+
+    authority is inherited from the boot process, can be given up, and can
+    never be acquired.
+
+  * userinit() is the only process born with p->budget_auth = 1. init, the
+    shell, and every program you run from the shell descend from it, so a
+    person at the console has it.
+  * fork copies it and exec preserves it, exactly like gid.
+  * freeproc() clears it, so a recycled process slot cannot inherit a
+    capability from whoever occupied it last.
+  * dropbudgetauth() clears it for the caller and returns 1 if this call took
+    something away (0 if there was nothing to take). It cannot fail and cannot
+    be undone; there is no syscall that grants authority to anyone.
+  * setgroup() and setbudget() check it first thing - before validating their
+    arguments - and answer BUDGET_NOAUTH (-43) if the caller lacks it. Ordered
+    that way deliberately: a confined process must not be able to use a policy
+    call as an oracle for what the argument checks would have said.
+  * Reads are never gated. getbudgetstat(), report() and budgetinfo() stay open
+    to everybody, because a confined workload that cannot see its own budget
+    cannot demonstrate the confinement.
+
+-43 is a different value from -42 on purpose. "You are not allowed to ask" and
+"you cannot afford it" are different facts, and a test that conflates them is
+not testing the gate. Both sentinels, like the whole cost table, are published
+by budgetinfo() rather than duplicated in headers, so userland can assert on
+them without re-guessing them.
+
+The observable consequence is a two-tier system, and 9.4 measures it: a child
+that drops authority keeps its group, keeps being charged for its work, and
+fails every one of the seven ways out it can try.
+
+3.8 GROUP ID RESERVATIONS
+-------------------------
+NGROUP is 20 - a project choice, not a lab requirement, pinned in
+budget_oracle.py so a shrinking table cannot silently hide a group. The ids are
+allocated, not incidental:
+
+    0    root and shell; never reconfigured by a scenario
+    1    invalid-input edges (nothing is expected to run there)
+    2-12 one per workload scenario group
+    13,14 owners of the staged foreign binaries
+    15   the mode x fill x cost grid
+    16   BUDGET_GID_CONFINE  - the group a confined workload is locked into
+    17   BUDGET_GID_DECOY    - a deliberately rich group, to migrate into
+    18   BUDGET_GID_TESTS    - upstream usertests: a policy too big to bind
+    19   spare
+
+The sentinel names live in kernel/budget.h, so usertests.c, scenarios.c and
+budget_oracle.py all read the same reservation instead of agreeing on a magic
+number three times.
+
+
+================================================================
+4. NEW SYSTEM CALLS
+================================================================
+
+    23  setgroup(gid)                          -> 0, -1 or BUDGET_NOAUTH
+    24  setbudget(gid, max, refill, mode)      -> 0, -1 or BUDGET_NOAUTH
+    25  getbudgetstat(struct group_stat *out)  -> 0 or -1           [FREE]
+    26  report(buf, len)                       -> len or -1         [FREE]
+    27  budgetinfo(struct budget_params *out)  -> 0 or -1           [FREE]
+    28  dropbudgetauth()                       -> 1 or 0            [FREE]
+
+getbudgetstat copies all 20 records into the user buffer; budgetstat is the
+human-readable dump of that. Numbers live in kernel/syscall.h and the user stubs
+are GENERATED: user/usys.pl is the source of truth, user/usys.S is built from it
+by make (add a line to usys.pl, never to usys.S - make clean deletes the .S and
+a hand edit loses its stub).
+
+report() is the free path. It copies in at most REPORT_MAX (128) bytes, printks
+them verbatim, counts the call against the group and returns the length. It
+costs no budget and is not on the lab's cost table, so it does not distort any
+of the measured charges. A rejected report() (over-long, bad pointer) is still
+free. rprintf() in user/printf.c is the user-visible wrapper: it formats, then
+splits the text into report-sized chunks, so an arbitrarily long line still
+never spends a token.
+
+budgetinfo() is the cost table itself, published. It copies struct budget_params
+(kernel/budget.h) - the period, NGROUP, both denial sentinels (`denied` = could
+not pay, `noauth` = not allowed to ask), every price, and the defaults
+budgetinit() installs - into the caller's buffer, for free, for the same
+reason report() is free: a limiter that charges to be inspected cannot be
+inspected. It exists so that nothing downstream has to keep a private copy of the
+numbers. user/scenarios.c prices every operation from this struct, budgetstat
+prints it above the table, and budget_oracle.py grades the run against the table
+the kernel actually charged in that same run. A price changed in the kernel is
+now visible to everything that depends on it, instead of silently disagreeing
+with a copy in a test program or a plotting script.
+
+setbudget semantics that are deliberate:
+  * max, refill and mode are validated; negative max/refill are rejected, and so
+    is a mode that is neither BUDGET_BLOCK nor BUDGET_FAIL (Test 3).
+  * Changing max CLAMPS held budget down to the new ceiling. It does not top
+    the bucket up to max. A policy change must not hand out free tokens (Test 2
+    reads budget=0 after raising max to 50).
+  * Before it rewrites anything, it BANKS what the old policy already earned
+    (budget_bank(), kernel/budget.c). This was a real bug found in Step 3:
+    setbudget reset last_refill to now, so tokens accrued by the outgoing refill
+    rate but not yet spent were thrown away, and a group that behaved itself and
+    was then reconfigured silently lost budget it had been granted. The scenario
+    that proves it is the fill=wait family: every one of them reconfigures a
+    group that has been accruing, and every one of them now starts at exactly
+    its ceiling.
+  * There is therefore no way to buy tokens except by waiting. Tests that need a
+    full bucket refill it by waiting (Test 7) rather than by reconfiguring, and
+    say so.
+  * used is reset, because it means "spend within the new policy window". The
+    event counters are lifetime totals and are NOT reset, so a fresh group
+    still starts at 0 and history is never silently erased. Every test either
+    uses its own group or asserts on deltas.
+
+setgroup and setbudget are the two policy calls, and both are gated on
+budget_auth (3.7): without it they return BUDGET_NOAUTH before looking at their
+arguments, and they do not touch any group's state. dropbudgetauth() is the only
+other call that changes authority and it can only take it away. Nothing else in
+the kernel grants it - there is no code path that sets budget_auth to 1 except
+userinit(). Scenario 9 and section 9.4 are the measurement.
+
+
+
+================================================================
+5. BUILD
+================================================================
+
+The Makefile's TOOLPREFIX probe finds riscv64-linux-gnu- automatically, so:
+
+    make              # kernel/kernel and all UPROGS
+    make fs.img       # the disk image (NOT built by the default goal)
+
+The build is clean under -Wall -Werror. The host-side scripts need only the
+standard library, except the plotting stage: `pip install -r requirements.txt`
+gets matplotlib and numpy.
+
+Filesystem layout constraints this tree satisfies and must keep satisfying.
+These were broken, cost hours to diagnose, and are not obvious from the code:
+
+  * struct dinode must remain exactly 64 bytes. NDIRECT is 11 (not upstream's
+    12) so the layout is 5 shorts + short gid + ushort pad1 + uint size +
+    uint addrs[NDIRECT + 1] = 12 + 4 + 48 = 64.
+  * The indirect pointer is addrs[NDIRECT], i.e. addrs[11], and the array is
+    NDIRECT + 1 long. Direct blocks are addrs[0..10]. When NDIRECT was cut to
+    11 the old addrs[NDIRECT-1] indexing aliased direct block 10 as the
+    indirect block, and mkfs died with "mkfs: read: Success".
+  * DIRSIZ is 30, not upstream's 14, because the user program
+    test_budget_suite is 17 characters and mkfs asserts
+    strlen(shortname) <= DIRSIZ. sizeof(struct dirent) becomes 32, which still
+    divides BSIZE evenly. Consequences: IPB=16, MAXFILE=267 blocks (~267 KB).
+  * mkfs strips the leading underscore from every UPROGS name: user/_echo.c is
+    installed as /echo, user/_sync.c as /sync. A test that execs "/_sync" gets
+    ENOENT, and if it is asserting on an exec charge it silently reads 0 tokens
+    and calls that a pass. Exec the installed name.
+
+
+================================================================
+6. RUN AND CAPTURE
+================================================================
+
+Step-by-step, including what to type and what success looks like:
+HOW_TO_RUN.md in this directory. This section is the reasoning behind it.
+
+QEMU must be >= 7.2. Debian/Ubuntu jammy ships 6.2, which cannot boot this
+kernel. The machines this was developed on now have 7.2 on PATH, so `make qemu`
+needs no extra argument; where PATH has an older build, name a newer one on the
+command line:
+
+    make qemu CPUS=1 QEMU="$(command -v qemu-system-riscv64)"
+
+`QEMU` cannot be exported to `make`: the Makefile assigns it unconditionally, so
+only a command-line assignment overrides it.
+
+Interactive run. The Makefile already passes -bios none, which is required:
+kernel/entry.S reads mhartid and start() uses mret and PMP, so the kernel must
+enter in M-mode at 0x80000000; kernel.ld and KERNBASE are set to match.
+
+    make qemu CPUS=1
+    $ test_budget_suite        # all seven tests, ~158 s
+    $ test_budget_suite 4      # one test, by number
+    $ budgetstat               # the whole group table, instant
+
+Scripted run - use the streaming harness, not the expect ones in this repo:
+
+    python3 run_xv6_test.py \
+        qemu-system-riscv64 1 test_budget_suite results/suite.log 1200 240
+
+Positional arguments: QEMU, CPUS, command to run (quote it if it has an
+argument, e.g. "test_budget_suite 4"), log file, hard timeout in seconds, idle
+timeout in seconds, and optionally the directory to run QEMU in (defaults to the
+current one). It runs QEMU with -snapshot - so a test can never
+mutate fs.img, and also so files a test creates are gone when QEMU exits -
+waits for the "$ " prompt, types the command, streams the log through select(),
+and exits with Ctrl-A x.
+
+Three timings that are easy to get wrong:
+
+  * The whole suite is ~158 s wall at CPUS=1. The long pole is Test 3, which
+    deliberately idles for 1100 ticks (~110 s) to watch accrual cap at max;
+    that sleep is the largest silent gap in the run, so an idle window under
+    ~150 s will stop a healthy run and look like a hang. 240 s is the safe
+    default. Before Step 2 the same suite took ~300 s, because per-character
+    printf was throttling the test's own output.
+  * The run is not silent at the end: the suite prints [SUMMARY] and then the
+    budgetstat table AFTER the "All Tests Completed" marker the harness watches
+    for. It therefore drains for XV6_DONE_GRACE seconds (default 3.0), ending
+    early once XV6_DONE_QUIET (0.5 s) passes with no new bytes. Without that,
+    the most important lines in the log - the verdict counts and the final
+    table - get cut off.
+  * A single test is quick (Test 4 is ~10 s), so re-run just the one that
+    failed rather than the suite.
+  * /scenarios is ~173 s, and the reason is arithmetic worth knowing before you
+    set a timeout: a tick in this tree is a tenth of a second (kernel/trap.c:181
+    re-arms the timer 1,000,000 timebase cycles out), so BUDGET_PERIOD's 100
+    ticks are 10 seconds of guest time and, because QEMU keeps the timebase near
+    real time, about 10 seconds of wall clock. Every BLOCK wait and every
+    deliberate top-up pays that, and the trace has about a dozen of them.
+    `scenarios 5` (the staircase group) is the slow one per operation; a group
+    with no waits, like `scenarios 3`, finishes in seconds.
+
+THE ONE-COMMAND RESULT GENERATOR (Step 3). Everything below is what it runs:
+
+    python3 generate_results.py                  # build, run, grade, plot
+    python3 generate_results.py --skip-build     # reuse kernel and fs.img
+    python3 generate_results.py --only 5         # one scenario group
+    python3 generate_results.py --out results    # where artifacts go (default)
+
+It finds a QEMU >= 7.2 (argument, $QEMU, then PATH - and it
+prints the version it rejected, because an old-QEMU boot failure looks like a
+kernel bug), builds, runs /scenarios through the streaming harness with
+-snapshot, then grades and plots. Artifacts land in results/: the raw trace,
+oracle.json, and six
+PNGs - the BLOCK staircase against its FAIL twin, bucket accounting, the cost
+matrix, the fan-out through one shared bucket, the confinement boundary, and
+predicted-versus-measured for every aggregate. Exit status is the verdict, so it
+works as a check in a script.
+
+The two grading stages, run separately when a trace already exists:
+
+    python3 budget_oracle.py results/scenarios.log --verbose   # terminal report
+    python3 analyze_results.py results/scenarios.log --out results
+
+budget_oracle.py is the expectations: it re-implements the lab's rules from first
+principles, derives what every operation in the trace should have done, and
+diffs that against what the kernel's counters say it did. analyze_results.py is
+the pictures: it runs the same oracle and draws only what the trace reported.
+Neither contains a hardcoded verdict - see section 10 item 5 for the version of
+analyze_results.py that did, and why a plot with typed-in thresholds is not
+evidence.
+
+There is deliberately no assertion inside the guest. A test that derives its
+expectations from the code under test cannot find a bug in that code, and a
+program running inside the kernel's reach is the least independent place to put
+the oracle. /scenarios reports; the host decides.
+
+
+================================================================
+7. THE TEST SUITE
+================================================================
+
+user/test_budget_suite.c, seven tests, 110 assertions. It is REAL: it drives the
+kernel through actual syscalls and reads actual state back through
+getbudgetstat. It is not a simulation and no expectation is hardcoded - every
+assertion is computed from a snapshot taken around the operation it judges.
+
+    test_budget_suite      all seven (~158 s wall on QEMU 9.2.4, CPUS=1)
+    test_budget_suite 4    one test, by number
+
+    Test 1  Cost matrix. Every row of section 2, each asserted as a delta:
+            console write 1, own-group file write 0, other-group file write 3,
+            unlink 10, exec of another group's binary 5, exec of a binary this
+            group wrote 0. The exec rows run in a child, because a successful
+            exec replaces the process that would have reported it.
+    Test 2  Reconfiguration and modes. Clamping (budget 100 -> 20), two unlinks
+            to empty the bucket, a third that BLOCKs for about a refill period
+            and is counted as ONE episode, then FAIL: raising max to 50 grants
+            nothing, and the denial returns BUDGET_DENIED immediately.
+    Test 3  Boundaries. setgroup(-1) and setgroup(NGROUP) rejected, setgroup(NGROUP-1)
+            accepted, setbudget with a bad gid, negative max, negative refill and an
+            unknown mode all rejected; an
+            exactly affordable unlink (max 10, cost 10) runs and drains; an
+            over-budget unlink is denied and spends nothing; a price ABOVE the
+            ceiling, and a bucket with no accrual, are both denied in BLOCK mode
+            instead of hanging; refill after 1100 idle ticks caps at max.
+    Test 4  Fork-bomb resistance. Group 5, 30 tokens, refill 0, FAIL, then 10
+            children each trying one unlink. Kernel grants 3 / refuses 7, and
+            the children's own exit statuses are cross-checked against the
+            kernel's counters - two independent measurements of the same fact.
+    Test 5  Isolation under concurrency. Group 6 loose (100 tokens, BLOCK) and
+            group 7 tight (30 tokens, FAIL) hammer at the same time without
+            either being waited on. Each group's counters, spend and remaining
+            budget are asserted separately, and each process's own count is
+            compared against what the kernel recorded.
+    Test 6  Lazy refill, staircase vs flat. Emits [DATA],mode,uptime,completed
+            rows for BLOCK then FAIL, and asserts the shape: BLOCK completes all
+            5 at 100-tick intervals with 2 blocked episodes and 0 refusals,
+            FAIL completes 3 instantly with 2 refusals and 0 blocked.
+    Test 7  What a denial costs. An exec denied by the budget runs nothing and
+            spends nothing; an unlink of a missing file returns -1 (not the
+            sentinel) and IS still charged; uptime/getbudgetstat/report all
+            work while the bucket is closed.
+
+user/budgetstat.c dumps the same table for ad-hoc inspection, and the suite now
+dumps it itself at the end, so one log is self-explaining.
+
+THE SECOND PROGRAM: user/scenarios.c is a workload tracer, not a test. The suite
+asks seven questions with fixed numbers in them; scenarios runs 28 shaped
+workloads and reports everything the kernel did around every one of its 147
+operations, and asserts nothing at all:
+
+    scenarios        all nine groups (~173 s wall, CPUS=1)
+    scenarios 5      one group, by number
+
+    1  an rm -rf-shaped group draining to empty, in FAIL, in BLOCK with no
+       accrual, and in BLOCK with accrual
+    2  a chatty logger: 20 console writes against a 12-token ceiling, then a
+       BLOCK logger that has to wait for a 1-token refill
+    3  a build that only touches its own files: own writes, own exec, pipe
+       writes and free reporting, 28 operations against a bucket of 0 in FAIL
+       mode - all 28 must run, because none of them is on the cost table
+    4  cross-group damage: writes into another group's file (3) and exec of
+       another group's binary (5), including a ceiling priced BELOW the cost
+    5  timing: the staircase, the flat line, and a drain-wait-grant timeline
+       that makes the accrual arithmetic observable one operation at a time
+    6  fan-out: 12 children, one bucket sized for 5 of them
+    7  an affordability grid: 7 classes x BLOCK/FAIL, each cell given a bucket
+       of exactly two operations' worth
+    8  inputs the engine must reject, each reported as an [EDGE] record
+    9  confinement: a controller puts a child in a poor group (2 operations'
+       worth, FAIL) beside a rich decoy, the child drops its policy authority
+       and then tries seven ways out - raise its own ceiling, move itself to the
+       decoy, re-point the decoy's policy, and so on - after which it runs a
+       normal scenario and a grandchild repeats the attempts. The scenario is
+       measured twice over: the attempts are [EDGE] records (property: none of
+       them may move any policy), and the workload that follows is a full [SCN]/
+       [OP] trace installed with install=0, so the same oracle model that grades
+       a controller's group grades a confined one. It has to come out charged:
+       confinement is a limit, not an exemption.
+
+Its output is a trace with one grammar, documented at the top of the file
+([PARAMS], [SCN], [OP], [DATA], [RES], [FAN], [EDGE], [DONE]), and every number
+in it comes from the kernel: the [OP] lines carry the bucket the operation saw
+and all four counter deltas across it. That is what budget_oracle.py consumes.
+
+Five traps surfaced while making the suite honest. All five are now covered by
+assertions rather than by prose:
+
+  * The old suite used open(..., 0x100) at 11 sites. O_CREATE here is 0x200
+    (kernel/fcntl.h), so nothing was ever created, and Test 4's unlinks returned
+    ENOENT rather than a budget decision. Fixed, and the victims are now created
+    for free before the bucket closes.
+  * It also used printf(fname, "victim%d.txt", i) as if printf were sprintf.
+    xv6 had no format-into-buffer form at all; user/printf.c now has snprintf()
+    and the suite uses it.
+  * Reusing one victim file across Test 6's two modes cost 3 tokens: the
+    recreate was a write into the OTHER group's inode, so the FAIL phase read 2
+    grants instead of 3. Each mode now owns its own file. This is the cost table
+    biting the harness that measures it.
+  * A BLOCK wait measured 99 ticks, not 100, because refill() advances
+    last_refill by whole periods and banks the remainder. Expectations on
+    elapsed ticks therefore need slop (TICK_SLOP); the structural claim is the
+    episode count, not the tick count.
+  * The exec rows first pointed at "/_sync", because that is the source file's
+    name in user/. mkfs installs it as /sync, so exec() failed for a reason
+    unrelated to the budget and the charge read 0 - which a delta assertion
+    accepts as a pass. A zero delta is only evidence if the operation happened,
+    so the exec assertions now check the child's exit status as well as the
+    token arithmetic.
+
+
+================================================================
+8. COUNTER SEMANTICS (the reporting contract)
+================================================================
+
+These definitions are enforced by the code. Treat this table as the API.
+
+    used        Tokens spent since the last setbudget() for that group.
+                Accumulated by charge(), reset by setbudget().
+    budget      Tokens currently held, never above max.
+    n_allowed   Charged syscalls that were granted. Free syscalls (cost 0) are
+                NOT counted. Before Step 1 every syscall counted, which made
+                the number meaningless (96 "allowed" for ~16 real operations).
+    n_blocked   Charged syscalls that had to wait for a refill, counted once per
+                blocked EPISODE, not once per tick wakeup. Before Step 1 it
+                counted wakeups, so it could far exceed n_allowed.
+    n_refused   Charged syscalls denied: FAIL mode, or BLOCK mode where the
+                price can never be reached (ceiling below the cost, or no
+                accrual). The caller receives BUDGET_DENIED and the syscall body
+                never ran.
+    n_reported  report() calls served. Counted, never charged.
+    report_bytes Bytes emitted through report(). Counted, never charged.
+
+A policy call refused for lack of authority appears in NONE of these counters.
+setgroup() and setbudget() are not charged operations and the gate returns
+BUDGET_NOAUTH before charge() is reached, so a confined process that hammers the
+policy calls changes no number the oracle reads. That is the property scenario 9
+and the gate_lies_but_writes mutant both test.
+
+Two rules make the numbers readable:
+
+  * Charged path spends budget, free path spends nothing. The three-way split is
+    granted / denied / reported, and no syscall appears in more than one of the
+    accounting columns.
+  * The REPORTED column lags by the reports being printed. The snapshot is taken
+    before the text that describes it - in budgetstat and in the suite's final
+    dump, the current table's own lines are not in its own numbers.
+
+The return code of a denied call is BUDGET_DENIED (-42), not -1. Both are
+negative, so `x < 0` error handling is unchanged, but a program can now tell
+"throttled" from "failed", and a test can assert on a denial instead of guessing
+from kernel counters.
+
+Invariant a reviewer can check: used equals the sum of the costs of the
+n_allowed calls that happened after the group's most recent setbudget().
+
+
+================================================================
+9. VERIFICATION RESULTS
+================================================================
+
+Environment: CPUS=1, -snapshot, kernel and userland clean under -Wall -Werror.
+The early runs were captured with QEMU 9.2.4, later ones with 7.2. Run logs are
+archived outside the repo; this file names them by basename.
+
+THE MEASURED RUN IS step2_suite_green_c1.log (in that archive):
+the whole suite, 110 checks, 0 failures, 157.9 s wall. Every one of the 110
+verdicts is in the log, printed by the group whose budget the test had just
+drained - which is the thing Step 2 was for. The ad-hoc table dump is
+step2_budgetstat_free_c1.log. The pre-Step-2 baseline, kept for comparison, is
+step1_final_suite_c1.log.
+
+REPRODUCIBLE: the suite was re-run from a rebuilt fs.img (step2_suite_recheck_c1
+.log) and the new log is byte-identical to the archived one - the same 110
+verdicts, the same [SUMMARY] line, and the same uptime in every [DATA] staircase
+row. At CPUS=1 with -snapshot nothing races, so the whole suite is deterministic
+and diffing two logs is a valid regression test; Step 3 should use that rather
+than re-reading numbers. budgetstat was re-checked against the same rebuilt
+image (step2_budgetstat_rebuilt_image.log).
+
+BEFORE / AFTER (same kernel, same QEMU; the two logs are different suites):
+
+                      Step 1 baseline                Step 2 green run
+                      (step1_final_suite_c1.log)    (step2_suite_green_c1.log)
+    ------------------------------------------------------------------------------
+    wall time         302 s                         158 s
+    verdicts          4 coarse [PASS] lines, one    110 [PASS] lines, plus
+                      for each of Tests 1, 2, 3, 5  [SUMMARY] checks=110 failed=0
+                      and no per-assertion
+                      accounting
+    Test 4            printed its children's        prints 10 assertions, all pass,
+                      output and no verdict of      including "exit statuses match
+                      its own; Test 6 printed 21    the denials = 7"; the suite
+                      [DATA] rows and no verdict,   reaches its summary
+                      and the log ends there
+    Test 3            "Unlink with exact budget     passes for the right reason: the
+                      result: -1 (expect 0)" was    group really holds exactly 10
+                      printed as an INFO line and   when the unlink runs, because
+                      the test still said PASS -    the print before it is free
+                      its own printf had eaten 1
+                      token first
+    budgetstat        the rows were literal "%3d"   the table appears at once, with
+                      plus mojibake, every          padded numbers and a REPORTED
+                      character a charged write;    column. printf is still charged
+                      ~110 s for a dozen lines      and still one write per
+                      (budgetstat_stockprintf.log)  character; only reporting moved
+    a budget denial   -1, indistinguishable from    BUDGET_DENIED (-42), which the
+                      ENOENT                        tests assert on
+
+The Step 1 log is the OLD suite, whose expectations were prose ("expect 0")
+rather than computed. That is the point: a suite that reports in sentences can
+print "expect 0", get -1, and still say PASS, and it cannot report anything at
+all once its own printing is charged.
+
+EXEC COST. First measured by hand in step1_exec_cost.log (group 9 exec'ing a
+group-0 /echo used 7 = 5 exec + 2 writes; group 0 exec'ing its own used 2 = 0 +
+the child's two writes; group 10 with budget 4 refused and used 0), and now
+asserted as deltas inside Test 1 against a silent binary (/sync):
+
+    T1 foreign exec charge = 5           T1 own-group exec charge = 0
+    T1 foreign exec counted = 1          T1 own-group exec skipped the bucket = 0
+    T1 foreign exec ran = 0 (exit)       T1 own-group exec ran = 0 (exit)
+
+and in Test 7 against a closed bucket:
+
+    T7 denied exec returns the sentinel = 10 (the child's exit code for -42)
+    T7 denied exec did not run the binary
+    T7 denied exec spent nothing / granted nothing / refused = 1
+
+"ran = 0" is the assertion that makes the charge assertion worth reading: a zero
+delta is only evidence if the operation actually happened. That distinction was
+learned the hard way (section 5, the mkfs underscore rule). The property that
+matters most here is the last block: a denial cannot be used to burn budget,
+because the charge is refused before anything is deducted.
+
+TEST 1, COST MATRIX - every row of section 2, each asserted as a budget delta
+and each cross-checked against the operation actually happening (T1 console 1,
+own-group write 0, other-group write 3, unlink 10 with the file really gone,
+foreign exec 5, own-group exec 0). 17 assertions. One of them is visible in the
+log as a stray character: the line reads "x[PASS] T1 console write charge = 1",
+because that test really does write a character to the console with the charged
+printf. The charged output path still exists and is still charged; only the
+reporting path became free.
+
+TEST 2, THE TWO SEMANTICS THAT ARE EASIEST TO GET WRONG:
+
+    a lower ceiling clamps the held budget          100 -> 20, not 20 -> 50
+    T2 BLOCK ticks waited                           100
+    T2 BLOCK waited unlink counted as ONE episode   blocked delta = 1
+    T2 FAIL denial returns the sentinel             -42
+    T2 FAIL denial spent nothing / did not block    used delta 0, blocked delta 0
+    T2 FAIL denial ticks waited                     0
+
+TEST 3, BOUNDARIES. setgroup(-1), setgroup(NGROUP), a bad gid, a negative max, a
+negative refill and an unknown mode each return -1, and setgroup(NGROUP-1)
+returns 0. Two of the four cases that used to be a hang or a false negative are
+the interesting ones:
+
+    exactly affordable (max 10, cost 10)   ran, drained to 0, spent exactly 10
+    price above the ceiling, BLOCK mode    denied (-42), blocked delta 0
+    no accrual and an empty bucket, BLOCK  denied (-42), blocked delta 0
+    refill after 1100 idle ticks           caps at exactly max = 100
+    a line printed with a closed bucket    spent 0, granted 0, reported 1
+
+The middle two are the Step 2 fix to charge(): BLOCK is only a wait if the
+bucket can eventually reach the price. Sleeping forever on a price that can
+never be afforded is a hang, not a throttle, so it is refused the way FAIL
+refuses it.
+
+Honest caveat on one of these assertions: "T3 a rejected setgroup left the group
+alone" checks only that setgroup(-5) returns -1. It never reads the process's
+group back, so it would pass even if a rejected call had moved the process. The
+thing that actually proves the property is the source: kernel/sysproc.c:120
+returns -1 before the `p->gid = gid` assignment on line 123. To make the test
+prove it too, a readback of the calling process's group is needed, and there is
+no getgroup() syscall yet.
+
+TEST 4, FORK BOMB, AND WHY IT IS NOW TWO MEASUREMENTS. Group 5, 30 tokens,
+refill 0, FAIL, 10 children each attempting one unlink:
+
+    kernel granted 3 / refused 7        (from getbudgetstat)
+    children that deleted 3 / denied 7  (from the exit statuses)
+    total spend equals the ceiling      used delta = 30, budget = 0
+
+The kernel's counters and the children's own exit codes are independent readings
+of the same fact; before Step 2 the second one could not be printed at all.
+
+TEST 5, ISOLATION UNDER CONCURRENCY. Group 6 (100, BLOCK) and group 7 (30, FAIL)
+hammer simultaneously, neither waited on: 5 granted / 0 waited / 50 spent versus
+3 granted / 2 refused / 30 spent, plus "the throttled group did not tax the
+other" and each process's own count agreeing with the kernel's.
+
+TEST 6, THE STAIRCASE AND THE FLAT LINE - the lab's headline graph, from [DATA]
+rows the kernel produced, not from an axhline:
+
+    [DATA],BLOCK,1204,0   [DATA],FAIL,1404,0
+    [DATA],BLOCK,1204,1   [DATA],FAIL,1404,1
+    [DATA],BLOCK,1204,2   [DATA],FAIL,1404,2
+    [DATA],BLOCK,1204,3   [DATA],FAIL,1404,3   <- 3 done, then denial is instant
+    [DATA],BLOCK,1304,4   [DATA],FAIL,1404,3   <- refused, file still there
+    [DATA],BLOCK,1404,5   [DATA],FAIL,1424,3   <- the test's own pause(20)
+
+    BLOCK: 5 deletions, 5 granted, 0 refused, 2 blocked episodes, 200 ticks
+    FAIL : 3 deletions, 3 granted, 2 refused, 0 blocked, 40 ticks (< 1 period)
+
+Same price, same bucket, opposite shape: BLOCK steps one unlink per refill
+period, FAIL flatlines at the ceiling. The 4th and 5th BLOCK rows are the two
+unlinks that had to wait for accrual, and n_blocked = 2 says the kernel knows it
+waited exactly twice.
+
+TEST 7, DENIALS VS REAL ERRORS, AND THE FREE PATH. A denied exec returns the
+sentinel and spends nothing; an unlink of a missing file returns -1 - not the
+sentinel - and IS charged 10, because the kernel cannot know an attempt is
+harmless until it has run it; and uptime, getbudgetstat and report with a closed
+bucket move no grant counters while n_reported advances ("one line is one
+report = 1", "bytes reported with a closed bucket = 46").
+
+SELF-REPORTED TABLE AT THE END OF THE GREEN RUN (the REPORTED column is what
+Step 2 added; group 6's 0 is its child, which never printed):
+
+      GID BUDGET/MAX REFILL  MODE  ALLOWED BLOCKED REFUSED REPORTED
+        0    100/  100     10 BLOCK       19        0        0         4
+        1    100/  100   1000 BLOCK        4        0        0        18
+        3      0/    0      0 FAIL         1        0        3        22
+        4      0/   50      0 FAIL         3        1        1        25
+        5      0/   30      0 FAIL         3        0        7        13
+        6    100/  100   1000 BLOCK        5        0        0         0
+        7      0/   30      0 FAIL         3        0        2        12
+        8     10/   30     10 BLOCK        5        2        0        12
+        9     10/   30     10 FAIL         3        0        2        13
+       10      0/    0      0 FAIL         1        0        1        22
+       15    100/  100     10 BLOCK        0        0        0         6
+
+STEP 3 AND 4, THE WORKLOADS AND THE ORACLE - measured in results/scenarios.log:
+28 scenarios, 147 traced operations, 959 derived checks, 0 failures, 173 s wall
+at CPUS=1. Regenerate the whole thing with `python3 generate_results.py`.
+
+The oracle is a second implementation of the lab's rules, written from the spec
+and not from kernel/budget.c. It reads the trace, works out what each operation
+should have done, and diffs that against the kernel's own counters. What it
+checks, in six layers:
+
+  1. the published table. Every price budgetinfo() reports is compared against
+     the lab sheet (unlink 10, console write 1, own-group write 0, other-group
+     write 3, foreign exec 5, own exec 0), plus NGROUP 20, the -42 and -43
+     sentinels - distinct, both negative, and not the same value - and the mode
+     constants. A cost-table change now fails a test instead of quietly becoming
+     the new truth.
+  2. every operation, one at a time. The decision (grant / wait / refuse), the
+     price charged, all four counter deltas across it, and the bucket itself -
+     predicted exactly where nothing accrues, and bounded by the refill the
+     kernel could have earned where something does.
+  3. the fan-out aggregate, which is closed-form however the children
+     interleave: grants = floor(bucket / price).
+  4. the inputs the engine must reject.
+  5. confinement: every escape a policy-less process attempts must be refused
+     with the no-authority sentinel, must move no policy in its own group or in
+     the decoy's, must leave the child's exit status clean, and must not exempt
+     the confined workload from being charged for the work it is allowed to do.
+  6. properties across the whole run: free classes never move a counter at any
+     budget, a denial charges nothing, every charged operation is accounted
+     exactly once, and every bucket that was told to fill reached its ceiling.
+
+PREDICTED AND MEASURED, from the green run (the columns printed are the model's;
+a measured line appears underneath only when the two disagree, and none did):
+
+    scenario                   class          max refill   mode ops  gr refused  used  wait
+    ---------------------------------------------------------------------------------------
+    B_unlink                   unlink          30     0   FAIL   5   3      2    30     0
+    C_unlink                   unlink          31     0  BLOCK   5   3      2    30     0
+    D_unlink                   unlink          20    10  BLOCK   5   5      0    50     3
+    B_console                  console         12     0   FAIL  20  12      8    12     0
+    C_console                  console          6     1  BLOCK   8   8      0     8     2
+    B_own                      ownwrite         0     0   FAIL  28   0      0     0     0
+    B_fwrite                   foreignwrite     9     0   FAIL   4   3      1     9     0
+    B_fexec                    foreignexec     10     0   FAIL   4   2      2    10     0
+    C_fexec                    foreignexec      4     0  BLOCK   3   0      3     0     0
+    K_stair                    unlink          30    10  BLOCK   5   5      0    50     2
+    K_flat                     unlink          30     0   FAIL   5   3      2    30     0
+    K_accrue                   unlink          20    10   FAIL   8   4      2    40     0
+    X_fanout                   unlink          50     0   FAIL  12   5      7    50     0
+    G_unlink_BLOCK             unlink          20     0  BLOCK   3   2      1    20     0
+    G_console_FAIL             console          2     0   FAIL   3   2      1     2     0
+    G_foreignwrite_BLOCK       foreignwrite     6     0  BLOCK   3   2      1     6     0
+    G_foreignexec_FAIL         foreignexec     10     0   FAIL   3   2      1    10     0
+    G_ownwrite_BLOCK           ownwrite         0     0  BLOCK   3   0      0     0     0
+    G_pipe_FAIL                pipe             0     0   FAIL   3   0      0     0     0
+    C_confine                  unlink          20     0   FAIL   5   2      3    20     0
+
+(the grid is 7 classes x 2 modes = 14 cells; four of its six uncharged rows are
+left out above, and "gr" counts only operations that reached the bucket, which is
+why a free class shows 0 - its three operations are separately asserted as having
+run with every counter unmoved.)
+
+Five rows are worth reading individually:
+
+  * B_own - 28 operations against a bucket of 0 in FAIL mode, all of them free
+    classes, all of them ran. This is the row that would catch a limiter that
+    charges for looking at itself.
+  * C_fexec - the price of a foreign exec is 5 and the ceiling is 4, in BLOCK
+    mode. Every attempt is refused with wait=0: the engine will not sleep on a
+    price it can never afford. Waiting here would be a hang, not a throttle.
+  * K_stair / K_flat - the lab's headline pair, same workload, opposite shape.
+    BLOCK finished all 5 unlinks and spent 200 ticks doing it (two waits of one
+    period each); FAIL finished 3 in 0 ticks and refused the rest.
+  * X_fanout - 12 children, one bucket of 50, price 10. Five could pay and five
+    did; the seven that refused each found the bucket already empty. The order
+    their lines reached the console is not the order they were forked - the last
+    seven printed before the first five - which is exactly why this scenario is
+    graded on its aggregate and not per child: grants = floor(50 / 10) is
+    determined, who got there first is not.
+  * C_confine - the only scenario in the trace whose policy nobody in the run
+    was allowed to write at the time it executed. The controller installed it
+    (group 16: ceiling 20, refill 0, FAIL), its child dropped its authority,
+    failed all seven escapes with -43, and then ran five unlinks: 2 granted, 3
+    refused, 20 tokens spent. Confinement changed the right to reconfigure, not
+    the obligation to pay.
+
+THE BUG STEP 3 FOUND, AND THE ONLY REASON IT WAS FINDABLE: sys_setbudget() reset
+last_refill to "now" without first banking what the outgoing policy had already
+earned. A group that had spent its tokens politely and was then reconfigured lost
+the elapsed part of the current period - tokens it had been granted, thrown away
+by a bookkeeping write. Nothing in the seven-test suite could see it, because no
+test reconfigured a group that was mid-period and then needed the accrual. The
+scenario runner does: filling a bucket for the grid means setting a generous
+refill, waiting a period, and reading the ceiling back, and it warned 8 times
+before the fix and 0 times after. The fix is budget_bank() (kernel/budget.c),
+which refill() and sys_setbudget() and the snapshot path all call, so the accrual
+clock can only be moved by someone who has already been paid for the period they
+are closing.
+
+REPRODUCIBLE, WITH ONE HONEST EXCEPTION: three captures of /scenarios, taken
+before and after a userland rebuild and hours apart, produce traces that are
+byte-identical after removing the absolute tick stamps - every decision, every
+counter delta, every aggregate, and the fan-out children's report order too. The
+stamps themselves drift by up to one tick between boots (t=2 becomes t=3), which
+is boot timing, not policy. Step 2's suite was byte-identical including uptime;
+this trace is not, because it runs 142 operations across 8 groups and one tick of
+scheduler luck is now visible. The oracle therefore bounds time-dependent
+predictions rather than diffing them, which is the same conclusion section 7's
+TICK_SLOP note reached from the other direction.
+
+THE ORACLE WAS CHECKED AGAINST LIES, not just against the truth.
+`python3 check_oracle_teeth.py` injects twelve single-field corruptions into a
+real trace - an undercharge, a wrong price, a phantom grant, a bucket that never
+drains, a free class that starts paying, a summary that disagrees with its
+operations, a lost line, a truncated run, a wait that was not counted, one child
+admitted too many through the shared bucket, a confined process that raises its
+own ceiling and is allowed to, and a gate that refuses with -43 while still
+rewriting the policy behind the refusal - and requires each to be caught by the
+specific check meant to catch it. All twelve are, each by its own named check,
+and the script exits non-zero if any escapes. An oracle that cannot fail is not
+evidence, and before Step 3 that is exactly what analyze_results.py was.
+
+STEP 2'S SUITE, RE-MEASURED AFTER EVERY KERNEL CHANGE: because budget_bank() and
+the authority gate both moved real code, the old seven-test suite is the
+regression. 110 checks, 0 failures, 157.9 s - unchanged counts, unchanged wall
+time - on the Step 4 kernel.
+
+STEP 4, THE AUTHORITY RULE, MEASURED. Scenario 9's [EDGE] records are the whole
+verdict, straight from results/scenarios.log:
+
+    confine_drop_first                  had=1     (this call took something away)
+    confine_raise_own_ceiling           rc=-43
+    confine_rewrite_decoy               rc=-43
+    confine_migrate_to_rich_group       rc=-43    (the decoy holds 10000 tokens)
+    confine_bad_gid_still_noauth        rc=-43    (gate fires before argument checks)
+    confine_drop_second                 rc=0      (nothing left to give up)
+    confine_policy_after_second_drop    rc=-43
+    confine_can_read_table              rc=0, ngroup=20   (reads stay open)
+    confine_bucket_visible              rc=0, max=20, budget=20
+    confine_grandchild_policy/_migrate  rc=-43    (exec does not reacquire it)
+    confine_after_escape                moved=0, max=20, refill=0, mode=1
+    confine_decoy_untouched             moved=0, max=10000
+
+and the workload that follows those attempts is charged, not exempt: C_confine
+ran 5 unlinks against the inherited 20-token ceiling, 2 granted, 3 refused, 20
+spent, with fill=inherited - the scenario never called setbudget() itself. The
+oracle's check_confinement() turns all of that into ~17 named checks, and
+results/confinement_boundary.png draws the attempts on the left and the charged
+bucket on the right.
+
+STEP 4, THE LAB'S "ALL EXISTING USERTESTS STILL PASS": true, and measured.
+`usertests` on this kernel prints ALL TESTS PASSED - 65 `test ...: OK` lines
+across the fast and slow groups, 0 FAILED, 0 panics, 152 s at CPUS=1 - with the
+limiter running the whole time:
+
+    [budget] group 18 after usertests: allowed=55012 blocked=0 refused=0
+             used=287117 budget=3995767/4000000
+    [budget] the limiter accounted for every call and throttled none
+
+The shape of that run is a design statement, not a workaround. user/usertests.c
+now puts itself in BUDGET_GID_TESTS (18) and installs a policy too big to bind -
+4,000,000 tokens, 400,000 refill, BLOCK - so the limiter observes every risky
+call the upstream suite makes and never once stops it. It cannot simply ask for a
+full bucket, because setbudget() clamps down and never tops up (section 4): the
+setup installs the ceiling at the ceiling rate, waits one BUDGET_PERIOD to earn
+it, then re-installs the real refill. That is the same "no way to buy tokens
+except by waiting" rule Test 7 asserts, used here to boot the whole upstream
+suite. Refill
+is chosen so a period's accrual outruns the suite's demand; at the default 10
+tokens per 10 s, manywrites' ~2000 unlinks would take hours.
+
+One genuine bug surfaced, and it was not the limiter's. `fourteen` failed with
+"create 123456789012345/123456789012345/123456789012345 failed". Three measure-
+ments pinned it: a pristine upstream xv6, built and run separately in a scratch
+tree, prints `test fourteen: OK` and ALL TESTS PASSED, so the base tree
+does not fail on its own; an isolated `usertests fourteen` here reports used=131,
+blocked=0, refused=0, so the budget never interfered; and the cause is section 5's
+DIRSIZ=30 - fourteen() carries the comment `// DIRSIZ is 14.` and hard-codes 14-
+and 15-character literals, which collide only while DIRSIZ is 14. The test now
+builds both names from the macro, so the truncation collision it exists to check
+is checked at whatever DIRSIZ is, and it cannot go stale a second time.
+
+STILL OPEN:
+
+  * Step 5: a QEMU console window to drive xv6 from the way the x86 build gave
+    you, and a way for a user to write their own budget workload and run it from
+    that CLI. Presentation and usability - nothing claimed above depends on it.
+    Section 11.
+  * The model reads the kernel's published table, so a price that is wrong in
+    the same way on both sides - a misreading of the lab sheet, say - is caught
+    only by layer 1, which compares that table against the numbers typed into
+    budget_oracle.py from the spec. Those are the one place in the whole harness
+    where an expected value is still written by hand, and deliberately so: some-
+    body has to transcribe the assignment.
+  * Authority proves a confined process cannot widen its own cage. It does not
+    claim a confined process cannot exhaust it: children in a group still share
+    one bucket and can starve each other, which is the intended semantics of a
+    per-group budget, as scenario 6 measures.
+
+
+================================================================
+10. KNOWN PROBLEMS AND OPEN DECISIONS
+================================================================
+
+Ordered by how much they matter.
+
+SOLVED IN STEP 2, listed so nobody re-litigates them:
+
+  * Reporting is no longer charged (was the blocker on the suite's own verdicts).
+    report() / rprintf(), sections 3.6 and 4. budgetstat now prints its table
+    instantly instead of taking 110 s to throttle through a dozen lines.
+  * A denial returns BUDGET_DENIED rather than an ambiguous -1, section 3.3.
+  * budgetstat's format strings: %3d/%7d are gone, the formatter has no field
+    widths, so columns are padded by hand (padnum in user/budgetstat.c and in
+    the suite). The old (null)-producing table is gone.
+  * The suite's 0x100-for-O_CREATE and printf-as-sprintf bugs, section 7.
+  * BLOCK mode on an unaffordable price used to sleep forever. Now denied,
+    section 3.4, Test 3.
+  * Pipe writes are free, section 2.
+  * syscall_cost() read ip->gid from an inode that namei() returns UNLOCKED and
+    possibly never loaded, so the exec charge was decided from a stale icache
+    slot. It happened to look right while everything was tested from group 0.
+    kernel/syscall.c now ilock()s before reading the owner and iunlockput()s
+    after. Anyone extending the cost table should copy that pattern: an unlocked
+    inode's fields are not a fact yet.
+  * user/usys.S is generated. The budget stubs had been hand-written into it,
+    which make clean silently deletes; they now come from user/usys.pl.
+
+Remaining, ordered by how much they matter:
+
+1. SOLVED IN STEP 4 - THE LIMITER WAS NOT A SECURITY BOUNDARY. Any process
+   could call setgroup(<new>) or setbudget(<own gid>, huge, huge, BLOCK) and walk
+   out of its own limits. The answer chosen is (a) from the old option list, with
+   a twist: policy authority is an inherited per-process capability, granted only
+   by userinit(), passed by fork, preserved by exec, cleared by freeproc(), and
+   surrenderable once via dropbudgetauth(). Reads stay open. Sections 3.7, 4 and
+   9, scenario 9, and two of the twelve negative-control mutants. Cooperative
+   accounting for anybody the boot process chose not to trust is now enforcement,
+   and the demonstration is in the trace rather than in the write-up.
+
+2. SOLVED IN STEP 4 - THE DEFAULTS WERE TOO TIGHT FOR UPSTREAM usertests.
+   Group 0 is still 100/10/BLOCK and that is still what a demo should use. What
+   changed is that usertests no longer runs there: it installs itself in
+   BUDGET_GID_TESTS (18) with 4,000,000 tokens and 400,000 refill, which the
+   suite's own ~287,000 charged tokens never approach, and it prints what the
+   limiter saw when it finishes. ALL TESTS PASSED, 65 OK, 0 throttled. The lab's
+   cost model and the upstream suite were never in principle conflict - only in
+   the choice of which group the regression tests spend. Section 9 has the run and
+   the one real bug it found (fourteen()'s hardcoded DIRSIZ, now derived).
+
+3. A DENIED OPERATION IS NOT REFUNDED, but a CHARGED OPERATION THAT THEN FAILS
+   IS SPENT. unlink of a missing file costs 10 tokens and returns -1 (Test 7
+   asserts this rather than hiding it). That follows from pay-before-you-break,
+   and refunding would require the kernel to know in advance that an attempt is
+   harmless. It is defensible and it is the first thing a reviewer will ask
+   about, so state the reasoning in the write-up.
+
+4. getbudgetstat stages 576 bytes on the kernel stack. Fine in practice, but
+   close to xv6's kernel stack budget; field-by-field copyout would remove the
+   buffer entirely.
+
+5. THE SHIPPED HARNESSES DO NOT WORK, and this is how someone concludes the
+   kernel is broken when it is not.
+   * run_tests.py: QEMU_BIN = "qemu-system-riscv64" takes whatever PATH yields.
+     The OpenSBI variants and the "pkill -f qemu-system-riscv64" cleanup are
+     gone (the firmware was an absolute path outside the repo, and an M-mode
+     kernel cannot run behind a firmware; the pkill also killed any tool
+     invocation that merely mentioned that string). What still does not work:
+     proc.stdout.readline() blocks forever because xv6's "$ " prompt is not
+     newline-terminated, so the "$ " in line test never fires, the command is
+     never typed, and the TIMEOUT loop condition is never re-evaluated.
+     TIMEOUT = 180 is shorter than the suite's own ~155 s plus boot. No
+     -snapshot, so every config mutates the live fs.img. Use run_xv6_test.py.
+   * analyze_results.py, until Step 3: parsed real [DATA] lines but hardcoded its
+     conclusions - a fixed test_order list that includes a verdict Test 4 can
+     never emit, and axhline(y=2)/axhline(y=3) labelled "Budget exhausted
+     (2 unlinks = 20 tokens)" drawn unconditionally even when the data
+     disagreed. A plotter with a scripted narrative, not an oracle. It now draws
+     only what the trace reported and derives every threshold from the published
+     table, and it exits non-zero when the oracle disagrees; the one PNG in the
+     repo root that the old version wrote (kernel_budget_verification.png) is
+     superseded and should not be shown to anyone.
+   run_xv6_test.py is the harness that actually works, and it now lives in this
+   repo. generate_results.py wraps it with QEMU discovery, so the version-selection
+   mistake above cannot be made by hand.
+
+6. Makefile has a dead version gate: the check-qemu-version target name was
+   deleted (the rule body is now an orphaned ":"), and the qemu target does not
+   depend on it either. So the MIN_QEMU_VERSION=7.2 check never runs, and
+   make qemu with QEMU 6.2 fails in a way that looks like a kernel panic.
+
+7. The interrupt/entry changes in this tree are the project's, not ours, and
+   are worth understanding before touching boot: kernel/start.c does
+   w_sie(0) where upstream enables SEIE|STIE, and kernel/trap.c's
+   trapinithart() sets SIE_STIE | SIE_SEIE | SIE_SSIE, with SIE_SSIE added to
+   kernel/riscv.h. Tested and cleared: these are NOT the cause of the slow
+   console (that was the charged-output problem, now solved). An A/B run with
+   charge() stubbed to return 0 made ls complete instantly.
+
+
+================================================================
+11. ROADMAP
+================================================================
+
+Step 1 - honest accounting. DONE, and measured (section 9). n_allowed only for
+charged calls; n_blocked once per block episode; used accumulated; setbudget
+clamps instead of topping up; SYS_exec cost 5 implemented and verified
+including the denied-exec case; charge moved behind syscall-number validation;
+struct group deduplicated into kernel/budget.h (which required adding an
+include guard to kernel/spinlock.h - without it the second inclusion was a
+redefinition error); the stat snapshot catches refill up so reports are not
+stale.
+
+Step 2 - free observability, honest errors. DONE, and measured (section 9). A
+reporting path that consumes no budget (SYS_report 26, report(), rprintf()), so
+a test can always print its verdict and budgetstat can always dump the table;
+BUDGET_DENIED (-42) instead of an ambiguous -1; the printf-per-character cost
+sidestepped rather than removed (user/printf.c refactored onto one formatter
+with two sinks, snprintf() added, printf/fprintf still charged); budgetstat's
+field widths replaced by hand padding against a struct shared through
+kernel/budget.h; the suite rewritten as 110 computed deltas, green in 158 s
+where the old one took 302 s and reported nothing; charge() no longer sleeps
+forever on a price BLOCK can never afford; pipe writes made free; and the
+unlocked-inode gid read in the exec charge fixed. The whole list, with reasons,
+is section 10's "SOLVED IN STEP 2".
+
+Step 3 - scenarios and an oracle. DONE, and measured (section 9). user/scenarios
+.c runs 27 shaped workloads - an rm -rf-shaped group, a chatty logger, a build
+that only touches its own files, cross-group writes and execs, the staircase and
+its flat twin, a drain-wait-grant timeline, 12 children through one bucket, a
+7-class x 2-mode affordability grid, and the invalid-input edges - and asserts
+nothing: it traces 142 operations with the bucket each one saw and all four
+counter deltas across it. budget_oracle.py re-implements the lab's rules from the
+spec and diffs them against that trace, 908 derived checks, all matching.
+analyze_results.py no longer contains a hardcoded verdict; it draws five figures
+from the same trace, and check_oracle_teeth.py proves the oracle notices ten kinds
+of lie. The cost table became data (SYS_budgetinfo 27), which is what lets the
+test, the plots and the oracle price an operation from the table the kernel
+actually charged. It found one real bug: a policy rewrite threw away the accrual
+the old policy had already earned (budget_bank(), section 4). Step 4 grew the same
+harness from 27 / 142 / 908 / ten-liars to 28 / 147 / 959 / twelve.
+
+Step 4 - DONE, and measured (section 9). Two halves.
+
+  (a) Authority. A confined process used to be able to widen its own cage, and
+  the sharpest question a grader can ask went unanswered. Now: budget_auth lives
+  in struct proc, is granted only by userinit(), is inherited by fork and
+  preserved by exec, is cleared when a process slot is recycled, and is given up
+  forever through SYS_dropbudgetauth 28. setgroup() and setbudget() answer
+  BUDGET_NOAUTH (-43) before they even read their arguments; every read path
+  stays open. NGROUP went 16 -> 20 to make room for the confinement cell, a rich
+  decoy and a home for the upstream suite, all named in kernel/budget.h.
+  scenario 9 measures it and the oracle grades it as ~17 checks; two new
+  negative controls prove that a gate which returns -43 while still writing the
+  policy, and a confined child which is allowed to raise its own ceiling, are
+  both caught. Free reads are what make confinement demonstrable at all: a
+  confined workload that cannot see its own bucket cannot prove it is confined.
+
+  (b) usertests. The lab's "all existing usertests still pass" is now true and
+  measured: the suite installs itself in group 18 under a policy too big to
+  bind, runs 65 tests green behind a live limiter that logged every one of its
+  55,012 risky calls, and prints what the limiter saw on both the success and
+  the failure path. It also found - and fixed - a stale upstream test:
+  fourteen() hard-coded the 14-character names that only collide while DIRSIZ is
+  14, in a tree whose DIRSIZ had to grow to 30 (section 5). Both names now come
+  from the macro, so the test checks the truncation it exists to check at any
+  DIRSIZ. Totals for this step: 28 scenarios / 147 operations / 959 checks green,
+  12 mutants caught, Step 2's suite still 110/110, six figures in results/.
+
+Step 5 - the console window, and user-authored workloads. NOT STARTED.
+
+  The x86 build of xv6 opened a QEMU window because it drove a VGA; this
+  Makefile (line 183) passes -nographic -serial mon:stdio instead, which folds
+  the guest console into the terminal `make qemu` ran from. That terminal is
+  already interactive - budgetstat, scenarios 5, usertests all run there today -
+  but it is not a separate window, and it is not what a demo audience expects.
+
+  Two facts already checked, because they decide the design: the prebuilt xpack
+  QEMU 9.2.4 was compiled with display backends (-display sdl, vnc, curses) and
+  with -chardev vc, so a real serial window is available on a machine with a
+  display (this one has DISPLAY=:0). xv6-riscv still has no framebuffer driver,
+  so the window shows the serial text console, not a guest GUI - which is exactly
+  what the x86 window was.
+
+  What to build, in order:
+    1. a `make qemu-window` target that boots with `-serial vc` so a QEMU window
+       appears, leaving -nographic untouched for every graded run. Verify the
+       window really appears on this host, with a screenshot as evidence.
+    2. the same session tee'd into the project directory - QEMU's chardev
+       logfile=, or -serial tcp::PORT,server,nowait plus a host bridge - so
+       typing into the window still produces the trace the oracle reads. A window
+       that cannot be captured is a window that cannot be graded.
+    3. every existing runner reachable from that CLI: budgetstat,
+       test_budget_suite [N], scenarios [N], usertests [name], and the graphs
+       redrawing on the host as the run proceeds (analyze_results.py and
+       budget_oracle.py are idempotent, so a watcher can refresh results/ live).
+    4. user-authored suites. The cheapest honest version is a plan-file
+       interpreter in the guest: read a file of directives (which group, what
+       policy, which operations, how many of them) and emit the existing
+       [SCN]/[OP]/[DATA]/[RES] grammar. Then a workload someone writes at the
+       console is graded by the same oracle with no new plumbing, and cannot fix
+       its own expectations from inside the kernel's reach. xv6's sh already runs
+       a script file, so command-level suites work today; the plan file is what a
+       budget-engine suite needs.
+    5. a small user/budgetctl.c to set a group's policy from the CLI (the shell
+       has authority), so a demo can throttle a workload by hand and watch it in
+       budgetstat's table.
+
+
+================================================================
+12. ENVIRONMENT NOTES
+================================================================
+
+  * The host disk is very full. Do not delete anything to free space without
+    asking; report candidates instead.
+  * Scratch space lives outside this repo: run logs in an external run-output
+    directory, experimental trees in a tmpfs directory that is wiped on reboot.
+    Nothing essential is kept there - this repo plus the .diff files are the
+    durable copies.
+  * QEMU 7.2 is on PATH, which is what the scripts default to. The system
+    package on this machine is 6.2 and cannot boot this kernel, and it cannot be
+    upgraded because sudo needs a password and is not usable
+    non-interactively.
+  * Never run "pkill -f qemu-system-riscv64". It matches the command string of
+    whatever shell invoked it. Use pgrep -af '[q]emu-system-riscv' and kill by
+    PID.
+  * Only one QEMU may hold fs.img at a time: a second run dies instantly with
+    'Failed to get shared "write" lock'. Two graded runs must therefore be
+    serialised, and a stale lock right after a killed run is worth one retry
+    before any diagnosis - it looks exactly like a kernel that will not boot, and
+    the log is two lines long.
+  * Run logs are archived OUTSIDE this repo, in an external run-output directory.
+    The harness that produces them now lives here, as run_xv6_test.py, and
+    generate_results.py defaults to it ($XV6_HARNESS overrides). Current and green:
+    step2_suite_green_c1.log
+    (whole suite, 110/110, 158 s), step2_suite_recheck_c1.log (byte-identical
+    re-run, the proof of determinism), step2_budgetstat_free_c1.log and
+    step2_budgetstat_rebuilt_image.log (the instant table, before and after the
+    image rebuild) and step2_free_reporting.diff (the 11 source files Step 2
+    touched, diffed against the Step 1 tree). Step 3's, and the first to be kept
+    INSIDE the repo as well: results/scenarios.log (the trace the graphs and the
+    oracle read), results/oracle.json (the parsed trace plus the model's rows)
+    and the six PNGs in results/, and step3_scenarios_c1.log plus
+    step3_suite_recheck_c1.log (the Step 2 suite re-run on the Step 3 kernel,
+    still 110/110) in that directory. Step 4's, all in that directory and all
+    green: step4_usertests_all_green_c1.log (ALL TESTS PASSED behind a live
+    limiter, 55012 risky calls accounted, 0 throttled),
+    step4_fourteen_fixed_c1.log (the same test in isolation after the DIRSIZ
+    fix), step4_suite_recheck_c1.log (110/110 again on the Step 4 kernel) and
+    step4_scenarios_c1.log (the scenario run before the final regeneration;
+    results/scenarios.log is the one the oracle and the figures were built from). Step 1's artefacts are kept as
+    history:
+    step1_final_suite_c1.log (the old suite, the 302 s baseline),
+    step1_exec_cost.log plus its source exec_cost_test.c (where the exec cost was
+    first measured, before Test 1 absorbed it), step1_accounting_fixes.diff
+    (exactly what Step 1 changed), and run_harness_fixes.diff.
+    suite_fixed_c1.log / suite_STOCK_c1.log / suite_fast_c1.log are pre-Step-1
+    baselines of the broken suite. run_xv6_test.py is the harness that works.
+    Nothing in that directory is under version control - if the repo is cloned
+    elsewhere, the logs do not come with it; results/ in the repo does.
+    The kernel_budget_verification.png still in the repo root is a dead artefact
+    of the old plotter and now cannot even be regenerated: it depicts tests 1-6
+    of the pre-Step-2 suite, whose log has no [PARAMS] record, which is what
+    analyze_results.py requires. Delete it rather than showing it; the live
+    equivalents are the six figures in results/.
+  * Scratch trees used for experiments, all in one tmpfs scratch directory
+    outside the repo: xv6up (pristine upstream xv6, used as the diff reference
+    for the line numbers above), fixed (printf batching + O_CREATE patch), fast
+    (batched printf only), ab (interrupt A/B tests) and verify (Step 1 + harness
+    patch - which is what step2_free_reporting.diff is diffed against). The green
+    Step 2 run was measured in this repo, not in a scratch tree. That directory
+    is tmpfs: all five trees are gone after a reboot, and the only copy of their
+    content is the .diff files above plus this repo.
+  * The full suite takes ~158 s at CPUS=1 now that reporting is free; ~300 s
+    with the old per-character-printf suite. Budget for that in any CI-style
+    wrapper; a 180 s timeout truncates the run before it reaches its summary,
+    and a short idle window looks like a hang for the reason in section 6.
+  * Note: this README is baked into fs.img by mkfs and is readable inside the
+    guest as the file README. `make fs.img` is how the in-guest copy is updated;
+    the default goal builds only the kernel, so editing this file and running
+    make qemu shows the OLD README inside the guest.
+
+BUILT AND TESTED: 2026-10-26. Step 3 (workload scenarios, a published cost
+table, and an independent oracle) complete: 27 scenarios and 142 operations
+grade 908/908 against the model, the five graphs regenerate from one command, and
+ten injected lies are all caught. Step 2's suite re-run on the same kernel after
+Step 3's accounting fix: still 110/110, still 157.9 s. Kernel and userland clean
+under -Wall -Werror. Step 1's measurements (2026-10-25) are superseded by section
+9 but kept as the baseline.
+
+
+================================================================
+13. UPSTREAM xv6
+================================================================
+
+This tree is a fork of MIT xv6-riscv (2024+ layout, sources under kernel/ and
+user/). Everything not named in sections 3-5 is stock xv6, including the FS
+log, the buffer cache, and this tree's sleeplock-split sleep API
+(sleep_prepare(chan), then release(lk), then sleep()) and its printk() rather
+than cprintf(). See https://pdos.csail.mit.edu/6.1810/ and the upstream
+LICENSE in this directory.
+
+Contributors to upstream xv6: Russ Cox (context switching, locking), Cliff
+Frey (MP), Xiao Yu (MP), Nickolai Zeldovich, Austin Clements, and many bug
+reporters; errors in stock xv6 go to Frans Kaashoek and Robert Morris
+(kaashoek,rtm@mit.edu).
+
+Do not reformat kernel/fs.h, kernel/file.h or the addrs[] indexing - section 5
+explains why, and make fs.img will tell you the same thing less politely.
