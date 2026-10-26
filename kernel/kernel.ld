@@ -6,6 +6,8 @@ SECTIONS
   /*
    * ensure that entry.S / _entry is at 0x80000000,
    * where qemu's -kernel jumps.
+   * entry.S reads mhartid and start() uses mret/PMP, so xv6 is
+   * entered in M-mode; that requires -bios none, not OpenSBI.
    */
   . = 0x80000000;
 
