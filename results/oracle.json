@@ -1,0 +1,3519 @@
+{
+ "params": {
+  "period": 100,
+  "ngroup": 20,
+  "denied": -42,
+  "noauth": -43,
+  "block": 0,
+  "fail": 1,
+  "unlink": 10,
+  "console": 1,
+  "ownwrite": 0,
+  "foreignwrite": 3,
+  "foreignexec": 5,
+  "ownexec": 0,
+  "pipe": 0,
+  "closedwrite": 1,
+  "dmax": 100,
+  "drefill": 10,
+  "dmode": 0
+ },
+ "edges": [
+  {
+   "name": "setbudget_gid_negative",
+   "rc": "-1"
+  },
+  {
+   "name": "setbudget_gid_out_of_range",
+   "rc": "-1"
+  },
+  {
+   "name": "setbudget_max_negative",
+   "rc": "-1"
+  },
+  {
+   "name": "setbudget_refill_negative",
+   "rc": "-1"
+  },
+  {
+   "name": "setbudget_mode_unknown",
+   "rc": "-1"
+  },
+  {
+   "name": "after_rejects",
+   "max": "100",
+   "refill": "10",
+   "mode": "0",
+   "budget": "100",
+   "used": "0",
+   "moved": "0"
+  },
+  {
+   "name": "accept_good",
+   "rc": "0",
+   "max": "11",
+   "refill": "2",
+   "mode": "1",
+   "used": "0"
+  },
+  {
+   "name": "setgroup_negative",
+   "rc": "-1"
+  },
+  {
+   "name": "setgroup_out_of_range",
+   "rc": "-1"
+  },
+  {
+   "name": "shell_group_untouched",
+   "max": "100",
+   "refill": "10",
+   "mode": "0"
+  },
+  {
+   "name": "budgetinfo_bad_address",
+   "rc": "-1"
+  },
+  {
+   "name": "getbudgetstat_bad_address",
+   "rc": "-1"
+  },
+  {
+   "name": "confinement_setup",
+   "gid": "16",
+   "max": "20",
+   "refill": "0",
+   "mode": "1",
+   "budget": "20",
+   "decoy": "17",
+   "decoy_max": "10000"
+  },
+  {
+   "name": "confine_drop_first",
+   "had": "1"
+  },
+  {
+   "name": "confine_raise_own_ceiling",
+   "rc": "-43"
+  },
+  {
+   "name": "confine_rewrite_decoy",
+   "rc": "-43"
+  },
+  {
+   "name": "confine_migrate_to_rich_group",
+   "rc": "-43"
+  },
+  {
+   "name": "confine_bad_gid_still_noauth",
+   "rc": "-43"
+  },
+  {
+   "name": "confine_drop_second",
+   "had": "1",
+   "rc": "0"
+  },
+  {
+   "name": "confine_policy_after_second_drop",
+   "rc": "-43"
+  },
+  {
+   "name": "confine_can_read_table",
+   "rc": "0",
+   "ngroup": "20"
+  },
+  {
+   "name": "confine_bucket_visible",
+   "rc": "0",
+   "max": "20",
+   "budget": "20"
+  },
+  {
+   "name": "confine_grandchild_policy",
+   "rc": "-43"
+  },
+  {
+   "name": "confine_grandchild_migrate",
+   "rc": "-43"
+  },
+  {
+   "name": "confine_child_status",
+   "status": "0"
+  },
+  {
+   "name": "confine_after_escape",
+   "moved": "0",
+   "max": "20",
+   "refill": "0",
+   "mode": "1",
+   "budget": "0",
+   "used": "20"
+  },
+  {
+   "name": "confine_decoy_untouched",
+   "moved": "0",
+   "max": "10000"
+  }
+ ],
+ "rows": [
+  {
+   "id": "B_unlink",
+   "name": "rmrf-FAIL",
+   "kind": "unlink",
+   "gid": 2,
+   "max": 30,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 5,
+   "predict": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 2,
+    "used": 30,
+    "granted": 3
+   },
+   "actual": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 2,
+    "used": 30,
+    "granted": 3
+   },
+   "bucket": 30,
+   "end_bucket": 0
+  },
+  {
+   "id": "C_unlink",
+   "name": "rmrf-BLOCK-no-refill",
+   "kind": "unlink",
+   "gid": 3,
+   "max": 31,
+   "refill": 0,
+   "mode": "BLOCK",
+   "ops": 5,
+   "predict": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 2,
+    "used": 30,
+    "granted": 3
+   },
+   "actual": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 2,
+    "used": 30,
+    "granted": 3
+   },
+   "bucket": 31,
+   "end_bucket": 1
+  },
+  {
+   "id": "D_unlink",
+   "name": "rmrf-BLOCK-refill",
+   "kind": "unlink",
+   "gid": 4,
+   "max": 20,
+   "refill": 10,
+   "mode": "BLOCK",
+   "ops": 5,
+   "predict": {
+    "allowed": 5,
+    "blocked": 3,
+    "refused": 0,
+    "used": 50,
+    "granted": 5
+   },
+   "actual": {
+    "allowed": 5,
+    "blocked": 3,
+    "refused": 0,
+    "used": 50,
+    "granted": 5
+   },
+   "bucket": 20,
+   "end_bucket": 0
+  },
+  {
+   "id": "B_console",
+   "name": "logger-FAIL",
+   "kind": "console",
+   "gid": 5,
+   "max": 12,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 20,
+   "predict": {
+    "allowed": 12,
+    "blocked": 0,
+    "refused": 8,
+    "used": 12,
+    "granted": 12
+   },
+   "actual": {
+    "allowed": 12,
+    "blocked": 0,
+    "refused": 8,
+    "used": 12,
+    "granted": 12
+   },
+   "bucket": 12,
+   "end_bucket": 0
+  },
+  {
+   "id": "C_console",
+   "name": "logger-BLOCK",
+   "kind": "console",
+   "gid": 6,
+   "max": 6,
+   "refill": 1,
+   "mode": "BLOCK",
+   "ops": 8,
+   "predict": {
+    "allowed": 8,
+    "blocked": 2,
+    "refused": 0,
+    "used": 8,
+    "granted": 8
+   },
+   "actual": {
+    "allowed": 8,
+    "blocked": 2,
+    "refused": 0,
+    "used": 8,
+    "granted": 8
+   },
+   "bucket": 6,
+   "end_bucket": 0
+  },
+  {
+   "id": "B_own",
+   "name": "own-work",
+   "kind": "ownwrite",
+   "gid": 13,
+   "max": 0,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 28,
+   "predict": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 28
+   },
+   "actual": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 28
+   },
+   "bucket": 0,
+   "end_bucket": 0
+  },
+  {
+   "id": "B_fwrite",
+   "name": "foreign-write",
+   "kind": "foreignwrite",
+   "gid": 8,
+   "max": 9,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 4,
+   "predict": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 1,
+    "used": 9,
+    "granted": 3
+   },
+   "actual": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 1,
+    "used": 9,
+    "granted": 3
+   },
+   "bucket": 9,
+   "end_bucket": 0
+  },
+  {
+   "id": "B_fexec",
+   "name": "foreign-exec",
+   "kind": "foreignexec",
+   "gid": 9,
+   "max": 10,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 4,
+   "predict": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 2,
+    "used": 10,
+    "granted": 2
+   },
+   "actual": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 2,
+    "used": 10,
+    "granted": 2
+   },
+   "bucket": 10,
+   "end_bucket": 0
+  },
+  {
+   "id": "C_fexec",
+   "name": "foreign-exec-ceiling-below-price",
+   "kind": "foreignexec",
+   "gid": 9,
+   "max": 4,
+   "refill": 0,
+   "mode": "BLOCK",
+   "ops": 3,
+   "predict": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 3,
+    "used": 0,
+    "granted": 0
+   },
+   "actual": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 3,
+    "used": 0,
+    "granted": 0
+   },
+   "bucket": 0,
+   "end_bucket": 0
+  },
+  {
+   "id": "K_stair",
+   "name": "staircase",
+   "kind": "unlink",
+   "gid": 10,
+   "max": 30,
+   "refill": 10,
+   "mode": "BLOCK",
+   "ops": 5,
+   "predict": {
+    "allowed": 5,
+    "blocked": 2,
+    "refused": 0,
+    "used": 50,
+    "granted": 5
+   },
+   "actual": {
+    "allowed": 5,
+    "blocked": 2,
+    "refused": 0,
+    "used": 50,
+    "granted": 5
+   },
+   "bucket": 30,
+   "end_bucket": 0
+  },
+  {
+   "id": "K_flat",
+   "name": "flat",
+   "kind": "unlink",
+   "gid": 11,
+   "max": 30,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 5,
+   "predict": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 2,
+    "used": 30,
+    "granted": 3
+   },
+   "actual": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 2,
+    "used": 30,
+    "granted": 3
+   },
+   "bucket": 30,
+   "end_bucket": 0
+  },
+  {
+   "id": "K_accrue",
+   "name": "drain-wait-grant",
+   "kind": "unlink",
+   "gid": 11,
+   "max": 20,
+   "refill": 10,
+   "mode": "FAIL",
+   "ops": 8,
+   "predict": {
+    "allowed": 4,
+    "blocked": 0,
+    "refused": 2,
+    "used": 40,
+    "granted": 6
+   },
+   "actual": {
+    "allowed": 4,
+    "blocked": 0,
+    "refused": 2,
+    "used": 40,
+    "granted": 6
+   },
+   "bucket": 20,
+   "end_bucket": 0
+  },
+  {
+   "id": "X_fanout",
+   "name": "fan-out",
+   "kind": "unlink",
+   "gid": 12,
+   "max": 50,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 12,
+   "predict": {
+    "allowed": 5,
+    "blocked": 0,
+    "refused": 7,
+    "used": 50,
+    "granted": 5
+   },
+   "actual": {
+    "allowed": 5,
+    "blocked": 0,
+    "refused": 7,
+    "used": 50,
+    "granted": 5
+   },
+   "bucket": 50,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_unlink_BLOCK",
+   "name": "grid",
+   "kind": "unlink",
+   "gid": 15,
+   "max": 20,
+   "refill": 0,
+   "mode": "BLOCK",
+   "ops": 3,
+   "predict": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 20,
+    "granted": 2
+   },
+   "actual": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 20,
+    "granted": 2
+   },
+   "bucket": 20,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_unlink_FAIL",
+   "name": "grid",
+   "kind": "unlink",
+   "gid": 15,
+   "max": 20,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 3,
+   "predict": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 20,
+    "granted": 2
+   },
+   "actual": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 20,
+    "granted": 2
+   },
+   "bucket": 20,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_console_BLOCK",
+   "name": "grid",
+   "kind": "console",
+   "gid": 15,
+   "max": 2,
+   "refill": 0,
+   "mode": "BLOCK",
+   "ops": 3,
+   "predict": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 2,
+    "granted": 2
+   },
+   "actual": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 2,
+    "granted": 2
+   },
+   "bucket": 2,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_console_FAIL",
+   "name": "grid",
+   "kind": "console",
+   "gid": 15,
+   "max": 2,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 3,
+   "predict": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 2,
+    "granted": 2
+   },
+   "actual": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 2,
+    "granted": 2
+   },
+   "bucket": 2,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_foreignwrite_BLOCK",
+   "name": "grid",
+   "kind": "foreignwrite",
+   "gid": 15,
+   "max": 6,
+   "refill": 0,
+   "mode": "BLOCK",
+   "ops": 3,
+   "predict": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 6,
+    "granted": 2
+   },
+   "actual": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 6,
+    "granted": 2
+   },
+   "bucket": 6,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_foreignwrite_FAIL",
+   "name": "grid",
+   "kind": "foreignwrite",
+   "gid": 15,
+   "max": 6,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 3,
+   "predict": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 6,
+    "granted": 2
+   },
+   "actual": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 6,
+    "granted": 2
+   },
+   "bucket": 6,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_foreignexec_BLOCK",
+   "name": "grid",
+   "kind": "foreignexec",
+   "gid": 15,
+   "max": 10,
+   "refill": 0,
+   "mode": "BLOCK",
+   "ops": 3,
+   "predict": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 10,
+    "granted": 2
+   },
+   "actual": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 10,
+    "granted": 2
+   },
+   "bucket": 10,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_foreignexec_FAIL",
+   "name": "grid",
+   "kind": "foreignexec",
+   "gid": 15,
+   "max": 10,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 3,
+   "predict": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 10,
+    "granted": 2
+   },
+   "actual": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 10,
+    "granted": 2
+   },
+   "bucket": 10,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_ownwrite_BLOCK",
+   "name": "grid",
+   "kind": "ownwrite",
+   "gid": 15,
+   "max": 0,
+   "refill": 0,
+   "mode": "BLOCK",
+   "ops": 3,
+   "predict": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "actual": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "bucket": 0,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_ownwrite_FAIL",
+   "name": "grid",
+   "kind": "ownwrite",
+   "gid": 15,
+   "max": 0,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 3,
+   "predict": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "actual": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "bucket": 0,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_ownexec_BLOCK",
+   "name": "grid",
+   "kind": "ownexec",
+   "gid": 13,
+   "max": 0,
+   "refill": 0,
+   "mode": "BLOCK",
+   "ops": 3,
+   "predict": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "actual": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "bucket": 0,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_ownexec_FAIL",
+   "name": "grid",
+   "kind": "ownexec",
+   "gid": 13,
+   "max": 0,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 3,
+   "predict": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "actual": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "bucket": 0,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_pipe_BLOCK",
+   "name": "grid",
+   "kind": "pipe",
+   "gid": 15,
+   "max": 0,
+   "refill": 0,
+   "mode": "BLOCK",
+   "ops": 3,
+   "predict": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "actual": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "bucket": 0,
+   "end_bucket": 0
+  },
+  {
+   "id": "G_pipe_FAIL",
+   "name": "grid",
+   "kind": "pipe",
+   "gid": 15,
+   "max": 0,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 3,
+   "predict": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "actual": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "granted": 3
+   },
+   "bucket": 0,
+   "end_bucket": 0
+  },
+  {
+   "id": "C_confine",
+   "name": "confined-work",
+   "kind": "unlink",
+   "gid": 16,
+   "max": 20,
+   "refill": 0,
+   "mode": "FAIL",
+   "ops": 5,
+   "predict": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 3,
+    "used": 20,
+    "granted": 2
+   },
+   "actual": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 3,
+    "used": 20,
+    "granted": 2
+   },
+   "bucket": 20,
+   "end_bucket": 0
+  }
+ ],
+ "scenarios": {
+  "B_unlink": {
+   "gid": 2,
+   "max": 30,
+   "refill": 0,
+   "mode": 1,
+   "budget": 30,
+   "ops": 5,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "B_unlink",
+   "name": "rmrf-FAIL",
+   "log": [
+    {
+     "id": "B_unlink",
+     "i": 0,
+     "kind": "unlink",
+     "bb": 30,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 3
+    },
+    {
+     "id": "B_unlink",
+     "i": 1,
+     "kind": "unlink",
+     "bb": 20,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 3
+    },
+    {
+     "id": "B_unlink",
+     "i": 2,
+     "kind": "unlink",
+     "bb": 10,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 3
+    },
+    {
+     "id": "B_unlink",
+     "i": 3,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 3
+    },
+    {
+     "id": "B_unlink",
+     "i": 4,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 3
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 2,
+    "used": 30,
+    "budget": 0,
+    "granted": 3
+   }
+  },
+  "C_unlink": {
+   "gid": 3,
+   "max": 31,
+   "refill": 0,
+   "mode": 0,
+   "budget": 31,
+   "ops": 5,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "C_unlink",
+   "name": "rmrf-BLOCK-no-refill",
+   "log": [
+    {
+     "id": "C_unlink",
+     "i": 0,
+     "kind": "unlink",
+     "bb": 31,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 3
+    },
+    {
+     "id": "C_unlink",
+     "i": 1,
+     "kind": "unlink",
+     "bb": 21,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 3
+    },
+    {
+     "id": "C_unlink",
+     "i": 2,
+     "kind": "unlink",
+     "bb": 11,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 3
+    },
+    {
+     "id": "C_unlink",
+     "i": 3,
+     "kind": "unlink",
+     "bb": 1,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 3
+    },
+    {
+     "id": "C_unlink",
+     "i": 4,
+     "kind": "unlink",
+     "bb": 1,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 3
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 2,
+    "used": 30,
+    "budget": 1,
+    "granted": 3
+   }
+  },
+  "D_unlink": {
+   "gid": 4,
+   "max": 20,
+   "refill": 10,
+   "mode": 0,
+   "budget": 20,
+   "ops": 5,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "D_unlink",
+   "name": "rmrf-BLOCK-refill",
+   "log": [
+    {
+     "id": "D_unlink",
+     "i": 0,
+     "kind": "unlink",
+     "bb": 20,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 4
+    },
+    {
+     "id": "D_unlink",
+     "i": 1,
+     "kind": "unlink",
+     "bb": 10,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 4
+    },
+    {
+     "id": "D_unlink",
+     "i": 2,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 1,
+     "dr": 0,
+     "du": 10,
+     "t": 103
+    },
+    {
+     "id": "D_unlink",
+     "i": 3,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 1,
+     "dr": 0,
+     "du": 10,
+     "t": 203
+    },
+    {
+     "id": "D_unlink",
+     "i": 4,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 1,
+     "dr": 0,
+     "du": 10,
+     "t": 303
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 5,
+    "blocked": 3,
+    "refused": 0,
+    "used": 50,
+    "budget": 0,
+    "granted": 5
+   }
+  },
+  "B_console": {
+   "gid": 5,
+   "max": 12,
+   "refill": 0,
+   "mode": 1,
+   "budget": 12,
+   "ops": 20,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "B_console",
+   "name": "logger-FAIL",
+   "log": [
+    {
+     "id": "B_console",
+     "i": 0,
+     "kind": "console",
+     "bb": 12,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 1,
+     "kind": "console",
+     "bb": 11,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 2,
+     "kind": "console",
+     "bb": 10,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 3,
+     "kind": "console",
+     "bb": 9,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 4,
+     "kind": "console",
+     "bb": 8,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 5,
+     "kind": "console",
+     "bb": 7,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 6,
+     "kind": "console",
+     "bb": 6,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 7,
+     "kind": "console",
+     "bb": 5,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 8,
+     "kind": "console",
+     "bb": 4,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 9,
+     "kind": "console",
+     "bb": 3,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 10,
+     "kind": "console",
+     "bb": 2,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 11,
+     "kind": "console",
+     "bb": 1,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 12,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 13,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 14,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 15,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 16,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 17,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 18,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 303
+    },
+    {
+     "id": "B_console",
+     "i": 19,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 303
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 12,
+    "blocked": 0,
+    "refused": 8,
+    "used": 12,
+    "budget": 0,
+    "granted": 12
+   }
+  },
+  "C_console": {
+   "gid": 6,
+   "max": 6,
+   "refill": 1,
+   "mode": 0,
+   "budget": 6,
+   "ops": 8,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "C_console",
+   "name": "logger-BLOCK",
+   "log": [
+    {
+     "id": "C_console",
+     "i": 0,
+     "kind": "console",
+     "bb": 6,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "C_console",
+     "i": 1,
+     "kind": "console",
+     "bb": 5,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "C_console",
+     "i": 2,
+     "kind": "console",
+     "bb": 4,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "C_console",
+     "i": 3,
+     "kind": "console",
+     "bb": 3,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "C_console",
+     "i": 4,
+     "kind": "console",
+     "bb": 2,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 303
+    },
+    {
+     "id": "C_console",
+     "i": 5,
+     "kind": "console",
+     "bb": 1,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 304
+    },
+    {
+     "id": "C_console",
+     "i": 6,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 1,
+     "dr": 0,
+     "du": 1,
+     "t": 403
+    },
+    {
+     "id": "C_console",
+     "i": 7,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 1,
+     "dr": 0,
+     "du": 1,
+     "t": 503
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 8,
+    "blocked": 2,
+    "refused": 0,
+    "used": 8,
+    "budget": 0,
+    "granted": 8
+   }
+  },
+  "B_own": {
+   "gid": 13,
+   "max": 0,
+   "refill": 0,
+   "mode": 1,
+   "budget": 0,
+   "ops": 28,
+   "atomic": 1,
+   "fill": "as-is",
+   "id": "B_own",
+   "name": "own-work",
+   "log": [
+    {
+     "id": "B_own",
+     "i": 0,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 1,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 2,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 3,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 4,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 5,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 6,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 7,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 8,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 9,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 10,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 11,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 12,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 13,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 14,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 503
+    },
+    {
+     "id": "B_own",
+     "i": 15,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 16,
+     "kind": "report",
+     "bb": 0,
+     "exp": 0,
+     "res": 3,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 17,
+     "kind": "report",
+     "bb": 0,
+     "exp": 0,
+     "res": 3,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 18,
+     "kind": "report",
+     "bb": 0,
+     "exp": 0,
+     "res": 3,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 19,
+     "kind": "report",
+     "bb": 0,
+     "exp": 0,
+     "res": 3,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 20,
+     "kind": "report",
+     "bb": 0,
+     "exp": 0,
+     "res": 3,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 21,
+     "kind": "report",
+     "bb": 0,
+     "exp": 0,
+     "res": 3,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 22,
+     "kind": "report",
+     "bb": 0,
+     "exp": 0,
+     "res": 3,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 23,
+     "kind": "report",
+     "bb": 0,
+     "exp": 0,
+     "res": 3,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 24,
+     "kind": "ownexec",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 25,
+     "kind": "ownexec",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 26,
+     "kind": "ownexec",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    },
+    {
+     "id": "B_own",
+     "i": 27,
+     "kind": "ownexec",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 504
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "budget": 0,
+    "granted": 28
+   }
+  },
+  "B_fwrite": {
+   "gid": 8,
+   "max": 9,
+   "refill": 0,
+   "mode": 1,
+   "budget": 9,
+   "ops": 4,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "B_fwrite",
+   "name": "foreign-write",
+   "log": [
+    {
+     "id": "B_fwrite",
+     "i": 0,
+     "kind": "foreignwrite",
+     "bb": 9,
+     "exp": 3,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 3,
+     "t": 504
+    },
+    {
+     "id": "B_fwrite",
+     "i": 1,
+     "kind": "foreignwrite",
+     "bb": 6,
+     "exp": 3,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 3,
+     "t": 504
+    },
+    {
+     "id": "B_fwrite",
+     "i": 2,
+     "kind": "foreignwrite",
+     "bb": 3,
+     "exp": 3,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 3,
+     "t": 504
+    },
+    {
+     "id": "B_fwrite",
+     "i": 3,
+     "kind": "foreignwrite",
+     "bb": 0,
+     "exp": 3,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 504
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 1,
+    "used": 9,
+    "budget": 0,
+    "granted": 3
+   }
+  },
+  "B_fexec": {
+   "gid": 9,
+   "max": 10,
+   "refill": 0,
+   "mode": 1,
+   "budget": 10,
+   "ops": 4,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "B_fexec",
+   "name": "foreign-exec",
+   "log": [
+    {
+     "id": "B_fexec",
+     "i": 0,
+     "kind": "foreignexec",
+     "bb": 10,
+     "exp": 5,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 5,
+     "t": 504
+    },
+    {
+     "id": "B_fexec",
+     "i": 1,
+     "kind": "foreignexec",
+     "bb": 5,
+     "exp": 5,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 5,
+     "t": 505
+    },
+    {
+     "id": "B_fexec",
+     "i": 2,
+     "kind": "foreignexec",
+     "bb": 0,
+     "exp": 5,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 505
+    },
+    {
+     "id": "B_fexec",
+     "i": 3,
+     "kind": "foreignexec",
+     "bb": 0,
+     "exp": 5,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 505
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 2,
+    "used": 10,
+    "budget": 0,
+    "granted": 2
+   }
+  },
+  "C_fexec": {
+   "gid": 9,
+   "max": 4,
+   "refill": 0,
+   "mode": 0,
+   "budget": 0,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "as-is",
+   "id": "C_fexec",
+   "name": "foreign-exec-ceiling-below-price",
+   "log": [
+    {
+     "id": "C_fexec",
+     "i": 0,
+     "kind": "foreignexec",
+     "bb": 0,
+     "exp": 5,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 505
+    },
+    {
+     "id": "C_fexec",
+     "i": 1,
+     "kind": "foreignexec",
+     "bb": 0,
+     "exp": 5,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 505
+    },
+    {
+     "id": "C_fexec",
+     "i": 2,
+     "kind": "foreignexec",
+     "bb": 0,
+     "exp": 5,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 505
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 3,
+    "used": 0,
+    "budget": 0,
+    "granted": 0
+   }
+  },
+  "K_stair": {
+   "gid": 10,
+   "max": 30,
+   "refill": 10,
+   "mode": 0,
+   "budget": 30,
+   "ops": 5,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "K_stair",
+   "name": "staircase",
+   "log": [
+    {
+     "id": "K_stair",
+     "i": 0,
+     "kind": "unlink",
+     "bb": 30,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 505
+    },
+    {
+     "id": "K_stair",
+     "i": 1,
+     "kind": "unlink",
+     "bb": 20,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 505
+    },
+    {
+     "id": "K_stair",
+     "i": 2,
+     "kind": "unlink",
+     "bb": 10,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 505
+    },
+    {
+     "id": "K_stair",
+     "i": 3,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 1,
+     "dr": 0,
+     "du": 10,
+     "t": 605
+    },
+    {
+     "id": "K_stair",
+     "i": 4,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 1,
+     "dr": 0,
+     "du": 10,
+     "t": 705
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 5,
+    "blocked": 2,
+    "refused": 0,
+    "used": 50,
+    "budget": 0,
+    "granted": 5
+   }
+  },
+  "K_flat": {
+   "gid": 11,
+   "max": 30,
+   "refill": 0,
+   "mode": 1,
+   "budget": 30,
+   "ops": 5,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "K_flat",
+   "name": "flat",
+   "log": [
+    {
+     "id": "K_flat",
+     "i": 0,
+     "kind": "unlink",
+     "bb": 30,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 705
+    },
+    {
+     "id": "K_flat",
+     "i": 1,
+     "kind": "unlink",
+     "bb": 20,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 705
+    },
+    {
+     "id": "K_flat",
+     "i": 2,
+     "kind": "unlink",
+     "bb": 10,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 705
+    },
+    {
+     "id": "K_flat",
+     "i": 3,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 705
+    },
+    {
+     "id": "K_flat",
+     "i": 4,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 705
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 3,
+    "blocked": 0,
+    "refused": 2,
+    "used": 30,
+    "budget": 0,
+    "granted": 3
+   }
+  },
+  "K_accrue": {
+   "gid": 11,
+   "max": 20,
+   "refill": 10,
+   "mode": 1,
+   "budget": 20,
+   "ops": 8,
+   "atomic": 1,
+   "fill": "wait",
+   "id": "K_accrue",
+   "name": "drain-wait-grant",
+   "log": [
+    {
+     "id": "K_accrue",
+     "i": 0,
+     "kind": "unlink",
+     "bb": 20,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 807
+    },
+    {
+     "id": "K_accrue",
+     "i": 1,
+     "kind": "unlink",
+     "bb": 10,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 807
+    },
+    {
+     "id": "K_accrue",
+     "i": 2,
+     "kind": "idle",
+     "bb": 0,
+     "exp": 0,
+     "res": 3,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 907
+    },
+    {
+     "id": "K_accrue",
+     "i": 3,
+     "kind": "unlink",
+     "bb": 10,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 907
+    },
+    {
+     "id": "K_accrue",
+     "i": 4,
+     "kind": "idle",
+     "bb": 0,
+     "exp": 0,
+     "res": 3,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1007
+    },
+    {
+     "id": "K_accrue",
+     "i": 5,
+     "kind": "unlink",
+     "bb": 10,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 1007
+    },
+    {
+     "id": "K_accrue",
+     "i": 6,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1007
+    },
+    {
+     "id": "K_accrue",
+     "i": 7,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1007
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 4,
+    "blocked": 0,
+    "refused": 2,
+    "used": 40,
+    "budget": 0,
+    "granted": 6
+   }
+  },
+  "X_fanout": {
+   "gid": 12,
+   "max": 50,
+   "refill": 0,
+   "mode": 1,
+   "budget": 50,
+   "ops": 12,
+   "atomic": 0,
+   "fill": "clamp",
+   "id": "X_fanout",
+   "name": "fan-out",
+   "log": [],
+   "kids": [
+    {
+     "id": "X_fanout",
+     "kid": 5,
+     "rc": 1,
+     "bb": 0
+    },
+    {
+     "id": "X_fanout",
+     "kid": 6,
+     "rc": 1,
+     "bb": 0
+    },
+    {
+     "id": "X_fanout",
+     "kid": 7,
+     "rc": 1,
+     "bb": 0
+    },
+    {
+     "id": "X_fanout",
+     "kid": 8,
+     "rc": 1,
+     "bb": 0
+    },
+    {
+     "id": "X_fanout",
+     "kid": 9,
+     "rc": 1,
+     "bb": 0
+    },
+    {
+     "id": "X_fanout",
+     "kid": 10,
+     "rc": 1,
+     "bb": 0
+    },
+    {
+     "id": "X_fanout",
+     "kid": 11,
+     "rc": 1,
+     "bb": 0
+    },
+    {
+     "id": "X_fanout",
+     "kid": 0,
+     "rc": 0,
+     "bb": 50
+    },
+    {
+     "id": "X_fanout",
+     "kid": 1,
+     "rc": 0,
+     "bb": 40
+    },
+    {
+     "id": "X_fanout",
+     "kid": 2,
+     "rc": 0,
+     "bb": 30
+    },
+    {
+     "id": "X_fanout",
+     "kid": 3,
+     "rc": 0,
+     "bb": 20
+    },
+    {
+     "id": "X_fanout",
+     "kid": 4,
+     "rc": 0,
+     "bb": 10
+    }
+   ],
+   "res": {
+    "allowed": 5,
+    "blocked": 0,
+    "refused": 7,
+    "used": 50,
+    "budget": 0,
+    "granted": 5,
+    "rc_deny": 7,
+    "rc_err": 0
+   }
+  },
+  "G_unlink_BLOCK": {
+   "gid": 15,
+   "max": 20,
+   "refill": 0,
+   "mode": 0,
+   "budget": 20,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "G_unlink_BLOCK",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_unlink_BLOCK",
+     "i": 0,
+     "kind": "unlink",
+     "bb": 20,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 1009
+    },
+    {
+     "id": "G_unlink_BLOCK",
+     "i": 1,
+     "kind": "unlink",
+     "bb": 10,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 1009
+    },
+    {
+     "id": "G_unlink_BLOCK",
+     "i": 2,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1009
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 20,
+    "budget": 0,
+    "granted": 2
+   }
+  },
+  "G_unlink_FAIL": {
+   "gid": 15,
+   "max": 20,
+   "refill": 0,
+   "mode": 1,
+   "budget": 20,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "wait",
+   "id": "G_unlink_FAIL",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_unlink_FAIL",
+     "i": 0,
+     "kind": "unlink",
+     "bb": 20,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 1111
+    },
+    {
+     "id": "G_unlink_FAIL",
+     "i": 1,
+     "kind": "unlink",
+     "bb": 10,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 1111
+    },
+    {
+     "id": "G_unlink_FAIL",
+     "i": 2,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1111
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 20,
+    "budget": 0,
+    "granted": 2
+   }
+  },
+  "G_console_BLOCK": {
+   "gid": 15,
+   "max": 2,
+   "refill": 0,
+   "mode": 0,
+   "budget": 2,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "wait",
+   "id": "G_console_BLOCK",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_console_BLOCK",
+     "i": 0,
+     "kind": "console",
+     "bb": 2,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 1213
+    },
+    {
+     "id": "G_console_BLOCK",
+     "i": 1,
+     "kind": "console",
+     "bb": 1,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 1213
+    },
+    {
+     "id": "G_console_BLOCK",
+     "i": 2,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1213
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 2,
+    "budget": 0,
+    "granted": 2
+   }
+  },
+  "G_console_FAIL": {
+   "gid": 15,
+   "max": 2,
+   "refill": 0,
+   "mode": 1,
+   "budget": 2,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "wait",
+   "id": "G_console_FAIL",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_console_FAIL",
+     "i": 0,
+     "kind": "console",
+     "bb": 2,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 1315
+    },
+    {
+     "id": "G_console_FAIL",
+     "i": 1,
+     "kind": "console",
+     "bb": 1,
+     "exp": 1,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 1,
+     "t": 1315
+    },
+    {
+     "id": "G_console_FAIL",
+     "i": 2,
+     "kind": "console",
+     "bb": 0,
+     "exp": 1,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1315
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 2,
+    "budget": 0,
+    "granted": 2
+   }
+  },
+  "G_foreignwrite_BLOCK": {
+   "gid": 15,
+   "max": 6,
+   "refill": 0,
+   "mode": 0,
+   "budget": 6,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "wait",
+   "id": "G_foreignwrite_BLOCK",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_foreignwrite_BLOCK",
+     "i": 0,
+     "kind": "foreignwrite",
+     "bb": 6,
+     "exp": 3,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 3,
+     "t": 1417
+    },
+    {
+     "id": "G_foreignwrite_BLOCK",
+     "i": 1,
+     "kind": "foreignwrite",
+     "bb": 3,
+     "exp": 3,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 3,
+     "t": 1417
+    },
+    {
+     "id": "G_foreignwrite_BLOCK",
+     "i": 2,
+     "kind": "foreignwrite",
+     "bb": 0,
+     "exp": 3,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1417
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 6,
+    "budget": 0,
+    "granted": 2
+   }
+  },
+  "G_foreignwrite_FAIL": {
+   "gid": 15,
+   "max": 6,
+   "refill": 0,
+   "mode": 1,
+   "budget": 6,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "wait",
+   "id": "G_foreignwrite_FAIL",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_foreignwrite_FAIL",
+     "i": 0,
+     "kind": "foreignwrite",
+     "bb": 6,
+     "exp": 3,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 3,
+     "t": 1519
+    },
+    {
+     "id": "G_foreignwrite_FAIL",
+     "i": 1,
+     "kind": "foreignwrite",
+     "bb": 3,
+     "exp": 3,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 3,
+     "t": 1519
+    },
+    {
+     "id": "G_foreignwrite_FAIL",
+     "i": 2,
+     "kind": "foreignwrite",
+     "bb": 0,
+     "exp": 3,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1519
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 6,
+    "budget": 0,
+    "granted": 2
+   }
+  },
+  "G_foreignexec_BLOCK": {
+   "gid": 15,
+   "max": 10,
+   "refill": 0,
+   "mode": 0,
+   "budget": 10,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "wait",
+   "id": "G_foreignexec_BLOCK",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_foreignexec_BLOCK",
+     "i": 0,
+     "kind": "foreignexec",
+     "bb": 10,
+     "exp": 5,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 5,
+     "t": 1621
+    },
+    {
+     "id": "G_foreignexec_BLOCK",
+     "i": 1,
+     "kind": "foreignexec",
+     "bb": 5,
+     "exp": 5,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 5,
+     "t": 1621
+    },
+    {
+     "id": "G_foreignexec_BLOCK",
+     "i": 2,
+     "kind": "foreignexec",
+     "bb": 0,
+     "exp": 5,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1621
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 10,
+    "budget": 0,
+    "granted": 2
+   }
+  },
+  "G_foreignexec_FAIL": {
+   "gid": 15,
+   "max": 10,
+   "refill": 0,
+   "mode": 1,
+   "budget": 10,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "wait",
+   "id": "G_foreignexec_FAIL",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_foreignexec_FAIL",
+     "i": 0,
+     "kind": "foreignexec",
+     "bb": 10,
+     "exp": 5,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 5,
+     "t": 1723
+    },
+    {
+     "id": "G_foreignexec_FAIL",
+     "i": 1,
+     "kind": "foreignexec",
+     "bb": 5,
+     "exp": 5,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 5,
+     "t": 1723
+    },
+    {
+     "id": "G_foreignexec_FAIL",
+     "i": 2,
+     "kind": "foreignexec",
+     "bb": 0,
+     "exp": 5,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1723
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 1,
+    "used": 10,
+    "budget": 0,
+    "granted": 2
+   }
+  },
+  "G_ownwrite_BLOCK": {
+   "gid": 15,
+   "max": 0,
+   "refill": 0,
+   "mode": 0,
+   "budget": 0,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "G_ownwrite_BLOCK",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_ownwrite_BLOCK",
+     "i": 0,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1723
+    },
+    {
+     "id": "G_ownwrite_BLOCK",
+     "i": 1,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1723
+    },
+    {
+     "id": "G_ownwrite_BLOCK",
+     "i": 2,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1723
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "budget": 0,
+    "granted": 3
+   }
+  },
+  "G_ownwrite_FAIL": {
+   "gid": 15,
+   "max": 0,
+   "refill": 0,
+   "mode": 1,
+   "budget": 0,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "G_ownwrite_FAIL",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_ownwrite_FAIL",
+     "i": 0,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1723
+    },
+    {
+     "id": "G_ownwrite_FAIL",
+     "i": 1,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    },
+    {
+     "id": "G_ownwrite_FAIL",
+     "i": 2,
+     "kind": "ownwrite",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "budget": 0,
+    "granted": 3
+   }
+  },
+  "G_ownexec_BLOCK": {
+   "gid": 13,
+   "max": 0,
+   "refill": 0,
+   "mode": 0,
+   "budget": 0,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "G_ownexec_BLOCK",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_ownexec_BLOCK",
+     "i": 0,
+     "kind": "ownexec",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    },
+    {
+     "id": "G_ownexec_BLOCK",
+     "i": 1,
+     "kind": "ownexec",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    },
+    {
+     "id": "G_ownexec_BLOCK",
+     "i": 2,
+     "kind": "ownexec",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "budget": 0,
+    "granted": 3
+   }
+  },
+  "G_ownexec_FAIL": {
+   "gid": 13,
+   "max": 0,
+   "refill": 0,
+   "mode": 1,
+   "budget": 0,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "G_ownexec_FAIL",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_ownexec_FAIL",
+     "i": 0,
+     "kind": "ownexec",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    },
+    {
+     "id": "G_ownexec_FAIL",
+     "i": 1,
+     "kind": "ownexec",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    },
+    {
+     "id": "G_ownexec_FAIL",
+     "i": 2,
+     "kind": "ownexec",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "budget": 0,
+    "granted": 3
+   }
+  },
+  "G_pipe_BLOCK": {
+   "gid": 15,
+   "max": 0,
+   "refill": 0,
+   "mode": 0,
+   "budget": 0,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "G_pipe_BLOCK",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_pipe_BLOCK",
+     "i": 0,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    },
+    {
+     "id": "G_pipe_BLOCK",
+     "i": 1,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    },
+    {
+     "id": "G_pipe_BLOCK",
+     "i": 2,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "budget": 0,
+    "granted": 3
+   }
+  },
+  "G_pipe_FAIL": {
+   "gid": 15,
+   "max": 0,
+   "refill": 0,
+   "mode": 1,
+   "budget": 0,
+   "ops": 3,
+   "atomic": 1,
+   "fill": "clamp",
+   "id": "G_pipe_FAIL",
+   "name": "grid",
+   "log": [
+    {
+     "id": "G_pipe_FAIL",
+     "i": 0,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    },
+    {
+     "id": "G_pipe_FAIL",
+     "i": 1,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    },
+    {
+     "id": "G_pipe_FAIL",
+     "i": 2,
+     "kind": "pipe",
+     "bb": 0,
+     "exp": 0,
+     "res": 0,
+     "da": 0,
+     "db": 0,
+     "dr": 0,
+     "du": 0,
+     "t": 1724
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 0,
+    "blocked": 0,
+    "refused": 0,
+    "used": 0,
+    "budget": 0,
+    "granted": 3
+   }
+  },
+  "C_confine": {
+   "gid": 16,
+   "max": 20,
+   "refill": 0,
+   "mode": 1,
+   "budget": 20,
+   "ops": 5,
+   "atomic": 1,
+   "fill": "inherited",
+   "id": "C_confine",
+   "name": "confined-work",
+   "log": [
+    {
+     "id": "C_confine",
+     "i": 0,
+     "kind": "unlink",
+     "bb": 20,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 1725
+    },
+    {
+     "id": "C_confine",
+     "i": 1,
+     "kind": "unlink",
+     "bb": 10,
+     "exp": 10,
+     "res": 0,
+     "da": 1,
+     "db": 0,
+     "dr": 0,
+     "du": 10,
+     "t": 1725
+    },
+    {
+     "id": "C_confine",
+     "i": 2,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1725
+    },
+    {
+     "id": "C_confine",
+     "i": 3,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1725
+    },
+    {
+     "id": "C_confine",
+     "i": 4,
+     "kind": "unlink",
+     "bb": 0,
+     "exp": 10,
+     "res": 1,
+     "da": 0,
+     "db": 0,
+     "dr": 1,
+     "du": 0,
+     "t": 1725
+    }
+   ],
+   "kids": [],
+   "res": {
+    "allowed": 2,
+    "blocked": 0,
+    "refused": 3,
+    "used": 20,
+    "budget": 0,
+    "granted": 2
+   }
+  }
+ }
+}
