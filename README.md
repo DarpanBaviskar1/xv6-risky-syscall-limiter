@@ -37,12 +37,12 @@ There is no other design document.
 
 **What exists.** A working, booting xv6-riscv kernel in which `unlink()`, `write()` and `exec()`
 are charged against a per-group token bucket, plus six new system calls (`setgroup`, `setbudget`,
-`getbudgetstat`, `report`, `budgetinfo`, `dropbudgetauth`) and three new user programs
-(`budgetstat`, `test_budget_suite`, `scenarios`) to configure, observe and exercise it. Writing
-policy is gated on an inherited capability that only the boot process starts with and that any
-process can give up forever. On the host side, `budget_oracle.py` re-derives what the engine
-should have done, `analyze_results.py` draws it, and `generate_results.py` runs all of it with one
-command.
+`getbudgetstat`, `report`, `budgetinfo`, `dropbudgetauth`) and five new user programs
+(`budgetstat`, `test_budget_suite`, `scenarios`, `budgetctl`, `runplan`) to configure, observe,
+exercise, and script it. Writing policy is gated on an inherited capability that only the boot
+process starts with and that any process can give up forever. On the host side,
+`budget_oracle.py` re-derives what the engine should have done, `analyze_results.py` draws it, and
+`generate_results.py` runs all of it with one command.
 
 **What is proven.** The bucket, the charging path, every row of the cost table (console write 1,
 own-group write 0, other-group write 3, pipe write 0, `unlink` 10, foreign exec 5, own-group exec
@@ -416,6 +416,8 @@ every user program).
 | `test_budget_suite 4` | One test, by number | ~10 s |
 | `scenarios` | 28 workload scenarios, 147 traced operations. Records only, asserts nothing. | ~173 s |
 | `scenarios 5` | One scenario group, by number | varies |
+| `budgetctl` | CLI for dynamic budget configuration (set/drop authority) | < 1 s |
+| `runplan` | Plan file interpreter for scripted workloads; emits oracle-compatible trace | varies |
 | `usertests` | Upstream xv6 test suite, under a non-binding budget | ~152 s |
 | `usertests fourteen` | One upstream test, by name | ~12 s |
 
@@ -553,8 +555,11 @@ X** (Ctrl-A then C enters the QEMU monitor instead).
 
 ```sh
 $ budgetstat               # the cost table + all 20 group records, instant
+$ budgetctl set 16 30 5 BLOCK   # configure group 16: max 30, refill 5, BLOCK
+$ budgetctl drop           # surrender policy authority
 $ test_budget_suite 4      # one test, ~10 s
 $ scenarios 3              # one scenario group
+$ runplan < my_plan.txt    # run a scripted plan from stdin
 $ usertests copyout        # one upstream test, by name
 ```
 
@@ -592,6 +597,9 @@ The expected green lines:
 afford, `-43` = not allowed to change policy), and the last line: `this process: holds policy
 authority (…)`.
 
+`budgetctl set 16 30 5 BLOCK` — configures group 16 and switches to it; `budgetstat` shows the
+new policy. `budgetctl drop` — the last line changes to `this process: NO policy authority`.
+
 `test_budget_suite` ends with:
 
 ```
@@ -605,7 +613,85 @@ authority (…)`.
 grade is produced on the host (§8), because a test that judges itself with the code under test
 proves nothing.
 
-`usertests` ends with:
+### 6.3 `budgetctl` — CLI for dynamic budget configuration
+
+`user/budgetctl.c`. A minimal shell-level tool to inspect and modify group policy without writing C.
+It uses the same policy syscalls as the test suite and is gated by `budget_auth` (§4.7).
+
+```
+$ budgetctl set 16 30 5 BLOCK    # group 16: max 30, refill 5/period, BLOCK mode
+$ budgetctl set 16 30 5 FAIL     # group 16: max 30, refill 5/period, FAIL mode
+$ budgetctl drop                  # surrender policy authority (irreversible)
+$ budgetctl                       # no args: prints usage
+```
+
+* `set <gid> <max> <refill> <BLOCK|FAIL>` — calls `setbudget()` and `setgroup()`; requires authority.
+  Negative `max`/`refill` are rejected (the kernel validates). The mode is case-insensitive.
+* `drop` — calls `dropbudgetauth()`; the caller surrenders its authority forever. Returns `1` if
+  authority was held, `0` if it was already gone. Cannot be undone; there is no syscall that grants
+  it back.
+* All calls use `rprintf()` (free path), so they produce output even when the group's bucket is empty.
+
+This is the tool a demo audience would use to throttle a workload by hand and watch the effect in
+`budgetstat`.
+
+### 6.4 `runplan` — Plan file interpreter for scripted workloads
+
+`user/runplan.c`. Reads a plan from a file or stdin, executes the directives, and emits a trace in
+the exact `[PARAMS]`/`[SCN]`/`[OP]`/`[DATA]`/`[RES]`/`[FAN]`/`[EDGE]`/`[DONE]` grammar that
+`budget_oracle.py` consumes. It is the "user-authored suite" primitive from Step 5 (§15): a
+workload someone writes at the console is graded by the same oracle with no new plumbing, and cannot
+fix its own expectations from inside the kernel's reach.
+
+```
+$ runplan /my/plan.txt          # read plan from file
+$ runplan < /my/plan.txt        # read plan from stdin
+$ runplan                       # read plan from stdin (interactive)
+```
+
+**Directives** (one per line, `#` starts a comment, quoted strings supported):
+
+| Directive | Arguments | Charged? | Oracle class |
+|---|---|---|---|
+| `SETBUDGET` | `gid max refill BLOCK\|FAIL` | policy (gated) | — |
+| `SETGROUP` | `gid` | policy (gated) | — |
+| `DROP_AUTH` | — | policy (free) | — |
+| `CREATE_FILE` | `path [content]` | free | — |
+| `UNLINK` | `path` | yes (10) | unlink |
+| `WRITE_CONSOLE` | `string` | yes (1) | console |
+| `WRITE_FOREIGN` | `path string` | yes (3) | foreignwrite |
+| `WRITE_OWN` | `path string` | no (0) | ownwrite |
+| `EXEC_FOREIGN` | `path` | yes (5) | foreignexec |
+| `EXEC_OWN` | `path` | no (0) | ownexec |
+| `PIPE_WRITE` | `string` | no (0) | pipe |
+| `REPORT` | `string` | no (free) | report |
+| `SLEEP` | `ticks` | no (free) | idle |
+
+`SETBUDGET` starts a new scenario (emits `[SCN]` with the plan's total traced operation count).
+`CREATE_FILE` stages victim files; it recreates them after a successful `UNLINK` so repeated
+deletions are real tests. Quoted strings (`"hello world"`) are parsed as a single argument.
+
+The trace is emitted through `rprintf()` (free path), so a throttled group can still produce a
+complete, gradable log. Example plan:
+
+```
+SETBUDGET 16 30 5 BLOCK
+SETGROUP 16
+CREATE_FILE victim.txt x
+UNLINK victim.txt
+WRITE_CONSOLE "first unlink done"
+SLEEP 100
+UNLINK victim.txt
+REPORT "done"
+```
+
+Feed it to QEMU and grade the result:
+
+```
+python3 budget_oracle.py results/plan.log
+```
+
+### 6.5 `usertests` — Upstream xv6 test suite, under a non-binding budget
 
 ```
 [budget] group 18 after usertests: allowed=55012 blocked=0 refused=0 used=287117 budget=3995767/4000000
@@ -1302,13 +1388,13 @@ harness from 27 / 142 / 908 / ten-liars to **28 / 147 / 959 / twelve**.
   147 operations / 959 checks green, 12 mutants caught, Step 2's suite still 110/110, six figures in
   `results/`.
 
-**Step 5 — the console window, and user-authored workloads. NOT STARTED.**
+**Step 5 — the console window, and user-authored workloads. PARTIAL.**
 
 The x86 build of xv6 opened a QEMU window because it drove a VGA; this Makefile (`Makefile:183`)
 passes `-nographic` instead, which folds the guest serial console *and* the QEMU monitor into the
 terminal `make qemu` ran from — hence Ctrl-A X to leave and Ctrl-A C for the monitor. That terminal
-is already interactive — `budgetstat`, `scenarios 5`, `usertests` all run there today — but it is
-not a separate window, and it is not what a demo audience expects.
+is already interactive — `budgetstat`, `budgetctl`, `runplan`, `scenarios 5`, `usertests` all run
+there today — but it is not a separate window, and it is not what a demo audience expects.
 
 Two facts already checked, because they decide the design: the prebuilt xpack QEMU 9.2.4 was
 compiled with display backends (`-display sdl`, `vnc`, `curses`) and with `-chardev vc`, so a real
@@ -1324,18 +1410,16 @@ What to build, in order:
 2. The same session tee'd into the project directory — QEMU's `chardev logfile=`, or
    `-serial tcp::PORT,server,nowait` plus a host bridge — so typing into the window still produces
    the trace the oracle reads. A window that cannot be captured is a window that cannot be graded.
-3. Every existing runner reachable from that CLI: `budgetstat`, `test_budget_suite [N]`,
-   `scenarios [N]`, `usertests [name]`, and the graphs redrawing on the host as the run proceeds
-   (`analyze_results.py` and `budget_oracle.py` are idempotent, so a watcher can refresh `results/`
-   live).
-4. User-authored suites. The cheapest honest version is a plan-file interpreter in the guest: read a
-   file of directives (which group, what policy, which operations, how many of them) and emit the
-   existing `[SCN]`/`[OP]`/`[DATA]`/`[RES]` grammar. Then a workload someone writes at the console is
-   graded by the same oracle with no new plumbing, and cannot fix its own expectations from inside
-   the kernel's reach. xv6's `sh` already runs a script file, so command-level suites work today;
-   the plan file is what a budget-engine suite needs.
-5. A small `user/budgetctl.c` to set a group's policy from the CLI (the shell has authority), so a
-   demo can throttle a workload by hand and watch it in `budgetstat`'s table.
+3. Every existing runner reachable from that CLI: `budgetstat`, `budgetctl`, `runplan`,
+   `test_budget_suite [N]`, `scenarios [N]`, `usertests [name]`, and the graphs redrawing on the
+   host as the run proceeds (`analyze_results.py` and `budget_oracle.py` are idempotent, so a watcher
+   can refresh `results/` live).
+4. **DONE: `user/budgetctl.c`** — CLI to set a group's policy from the shell (the shell has
+   authority), so a demo can throttle a workload by hand and watch it in `budgetstat`'s table.
+5. **DONE: `user/runplan.c`** — Plan file interpreter in the guest: read a file of directives (which
+   group, what policy, which operations, how many of them) and emit the existing `[SCN]`/`[OP]`/
+   `[DATA]`/`[RES]` grammar. Then a workload someone writes at the console is graded by the same
+   oracle with no new plumbing, and cannot fix its own expectations from inside the kernel's reach.
 
 ---
 
