@@ -156,6 +156,8 @@ UPROGS=\
 	$U/_budgetstat\
 	$U/_test_budget_suite\
 	$U/_scenarios\
+	$U/_budgetctl\
+	$U/_runplan\
 
 fs.img: mkfs/mkfs README.md $(UPROGS)
 	mkfs/mkfs fs.img README.md $(UPROGS)
